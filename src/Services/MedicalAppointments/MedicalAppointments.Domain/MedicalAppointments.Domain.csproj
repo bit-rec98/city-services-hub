@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>MedicalAppointments.Domain</RootNamespace>
+    <AssemblyName>MedicalAppointments.Domain</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\BuildingBlocks\Common\Common.csproj" />
+  </ItemGroup>
+
+</Project>
