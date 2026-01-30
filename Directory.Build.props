@@ -1,0 +1,13 @@
+<Project>
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <LangVersion>latest</LangVersion>
+    <Authors>City Services Hub Team</Authors>
+    <Company>Hub de Servicios Ciudadanos</Company>
+    <Product>City Services Hub</Product>
+    <Copyright>Copyright © 2024</Copyright>
+  </PropertyGroup>
+</Project>
