@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 function MedicalAppointments() {
   const [showForm, setShowForm] = useState(false);
+  const [error, setError] = useState(null);
   const [formData, setFormData] = useState({
     patientId: '',
     patientName: '',
@@ -15,10 +16,13 @@ function MedicalAppointments() {
     notes: ''
   });
 
+  const queryClient = useQueryClient();
+
   const createAppointment = useMutation({
     mutationFn: (data) => axios.post(`${API_URL}/medical/appointments`, data),
     onSuccess: () => {
       setShowForm(false);
+      setError(null);
       setFormData({
         patientId: '',
         patientName: '',
@@ -27,7 +31,15 @@ function MedicalAppointments() {
         appointmentDate: '',
         notes: ''
       });
+      // Invalidate and refetch appointments list
+      queryClient.invalidateQueries({ queryKey: ['appointments'] });
       alert('¡Turno creado exitosamente!');
+    },
+    onError: (error) => {
+      const errorMessage = error.response?.data?.error || 
+                          error.response?.data?.errors || 
+                          'Error al crear el turno. Por favor, intente nuevamente.';
+      setError(errorMessage);
     }
   });
 
@@ -49,11 +61,22 @@ function MedicalAppointments() {
 
       <div className="bg-white rounded-lg shadow-md p-6 mb-6">
         <button
-          onClick={() => setShowForm(!showForm)}
+          onClick={() => {
+            setShowForm(!showForm);
+            setError(null);
+          }}
           className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition"
         >
           {showForm ? 'Cancelar' : 'Nuevo Turno'}
         </button>
+
+        {error && (
+          <div className="mt-4 bg-red-50 border-l-4 border-red-500 p-4">
+            <p className="text-red-700">
+              {typeof error === 'string' ? error : JSON.stringify(error)}
+            </p>
+          </div>
+        )}
 
         {showForm && (
           <form onSubmit={handleSubmit} className="mt-6 space-y-4">

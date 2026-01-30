@@ -42,8 +42,8 @@ services:
   # API Gateway
   api-gateway:
     build:
-      context: ./src/ApiGateway
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: src/ApiGateway/Dockerfile
     container_name: city-services-gateway
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
@@ -64,8 +64,8 @@ services:
   # Medical Appointments Service
   medical-appointments:
     build:
-      context: ./src/Services/MedicalAppointments
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: src/Services/MedicalAppointments/Dockerfile
     container_name: medical-appointments-service
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
@@ -86,8 +86,8 @@ services:
   # Legislative Management Service
   legislative:
     build:
-      context: ./src/Services/Legislative
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: src/Services/Legislative/Dockerfile
     container_name: legislative-service
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
@@ -108,8 +108,8 @@ services:
   # HR Management Service
   hr-management:
     build:
-      context: ./src/Services/HumanResources
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: src/Services/HumanResources/Dockerfile
     container_name: hr-management-service
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
@@ -130,8 +130,8 @@ services:
   # Tax Services
   tax-services:
     build:
-      context: ./src/Services/TaxServices
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: src/Services/TaxServices/Dockerfile
     container_name: tax-services
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
@@ -152,8 +152,8 @@ services:
   # Frontend React App
   frontend:
     build:
-      context: ./src/Web/ClientApp
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: src/Web/ClientApp/Dockerfile
     container_name: city-services-frontend
     environment:
       - VITE_API_URL=http://localhost:5000
