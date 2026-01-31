@@ -1,0 +1,174 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Databases
+  postgres:
+    image: postgres:15-alpine
+    container_name: city-services-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+      POSTGRES_DB: city_services
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql
+    networks:
+      - city-services-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    container_name: city-services-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - city-services-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: redis-server --appendonly yes
+
+  # API Gateway
+  api-gateway:
+    build:
+      context: .
+      dockerfile: src/ApiGateway/Dockerfile
+    container_name: city-services-gateway
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:5000
+      - ConnectionStrings__Redis=redis:6379
+    ports:
+      - "5000:5000"
+    depends_on:
+      - redis
+      - medical-appointments
+      - legislative
+      - hr-management
+      - tax-services
+    networks:
+      - city-services-network
+    restart: unless-stopped
+
+  # Medical Appointments Service
+  medical-appointments:
+    build:
+      context: .
+      dockerfile: src/Services/MedicalAppointments/Dockerfile
+    container_name: medical-appointments-service
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:5001
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=medical_appointments_db;Username=postgres;Password=postgres123
+      - ConnectionStrings__Redis=redis:6379
+    ports:
+      - "5001:5001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - city-services-network
+    restart: unless-stopped
+
+  # Legislative Management Service
+  legislative:
+    build:
+      context: .
+      dockerfile: src/Services/Legislative/Dockerfile
+    container_name: legislative-service
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:5002
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=legislative_db;Username=postgres;Password=postgres123
+      - ConnectionStrings__Redis=redis:6379
+    ports:
+      - "5002:5002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - city-services-network
+    restart: unless-stopped
+
+  # HR Management Service
+  hr-management:
+    build:
+      context: .
+      dockerfile: src/Services/HumanResources/Dockerfile
+    container_name: hr-management-service
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:5003
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=hr_db;Username=postgres;Password=postgres123
+      - ConnectionStrings__Redis=redis:6379
+    ports:
+      - "5003:5003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - city-services-network
+    restart: unless-stopped
+
+  # Tax Services
+  tax-services:
+    build:
+      context: .
+      dockerfile: src/Services/TaxServices/Dockerfile
+    container_name: tax-services
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:5004
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=tax_services_db;Username=postgres;Password=postgres123
+      - ConnectionStrings__Redis=redis:6379
+    ports:
+      - "5004:5004"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - city-services-network
+    restart: unless-stopped
+
+  # Frontend React App
+  frontend:
+    build:
+      context: .
+      dockerfile: src/Web/ClientApp/Dockerfile
+    container_name: city-services-frontend
+    environment:
+      - VITE_API_URL=http://localhost:5000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api-gateway
+    networks:
+      - city-services-network
+    restart: unless-stopped
+
+networks:
+  city-services-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
