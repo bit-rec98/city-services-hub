@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>MedicalAppointments.Infrastructure</RootNamespace>
+    <AssemblyName>MedicalAppointments.Infrastructure</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.0" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\BuildingBlocks\Common\Common.csproj" />
+    <ProjectReference Include="..\MedicalAppointments.Application\MedicalAppointments.Application.csproj" />
+    <ProjectReference Include="..\MedicalAppointments.Domain\MedicalAppointments.Domain.csproj" />
+  </ItemGroup>
+
+</Project>
