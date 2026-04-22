@@ -90,9 +90,9 @@ function MedicalAppointments() {
   };
 
   const handleCancel = (id) => {
-    if (window.confirm('¿Está seguro que desea cancelar este turno?')) {
-      cancelAppointment.mutate({ id, reason: 'Cancelado por el paciente' });
-    }
+    const reason = window.prompt('Motivo de cancelación (opcional):');
+    if (reason === null) return; // user pressed Cancel in the dialog
+    cancelAppointment.mutate({ id, reason: reason.trim() });
   };
 
   return (
