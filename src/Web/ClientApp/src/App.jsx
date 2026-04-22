@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Home from './pages/Home';
+import Dashboard from './pages/Dashboard';
 import MedicalAppointments from './pages/MedicalAppointments';
 import Legislative from './pages/Legislative';
 import HumanResources from './pages/HumanResources';
@@ -21,6 +22,9 @@ function App() {
                   Hub Ciudadano
                 </Link>
                 <div className="flex space-x-4">
+                  <Link to="/dashboard" className="hover:bg-blue-700 px-3 py-2 rounded">
+                    Dashboard
+                  </Link>
                   <Link to="/medical" className="hover:bg-blue-700 px-3 py-2 rounded">
                     Turnos Médicos
                   </Link>
@@ -42,6 +46,7 @@ function App() {
           <main className="container mx-auto px-4 py-8">
             <Routes>
               <Route path="/" element={<Home />} />
+              <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/medical" element={<MedicalAppointments />} />
               <Route path="/legislative" element={<Legislative />} />
               <Route path="/hr" element={<HumanResources />} />
