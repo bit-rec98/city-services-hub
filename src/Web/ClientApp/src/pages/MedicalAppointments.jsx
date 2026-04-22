@@ -4,6 +4,30 @@ import axios from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
+const STATUS_LABELS = {
+  Scheduled: 'Programado',
+  Confirmed: 'Confirmado',
+  Cancelled: 'Cancelado',
+  Completed: 'Completado',
+  NoShow: 'No se presentó',
+};
+
+const STATUS_CLASSES = {
+  Scheduled: 'bg-blue-100 text-blue-800',
+  Confirmed: 'bg-green-100 text-green-800',
+  Cancelled: 'bg-red-100 text-red-800',
+  Completed: 'bg-gray-100 text-gray-800',
+  NoShow: 'bg-yellow-100 text-yellow-800',
+};
+
+function StatusBadge({ status }) {
+  return (
+    <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${STATUS_CLASSES[status] ?? 'bg-gray-100 text-gray-800'}`}>
+      {STATUS_LABELS[status] ?? status}
+    </span>
+  );
+}
+
 function MedicalAppointments() {
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState(null);
@@ -18,6 +42,12 @@ function MedicalAppointments() {
 
   const queryClient = useQueryClient();
 
+  const { data: appointments, isLoading, isError } = useQuery({
+    queryKey: ['appointments'],
+    queryFn: () =>
+      axios.get(`${API_URL}/medical/appointments`).then((res) => res.data),
+  });
+
   const createAppointment = useMutation({
     mutationFn: (data) => axios.post(`${API_URL}/medical/appointments`, data),
     onSuccess: () => {
@@ -31,7 +61,6 @@ function MedicalAppointments() {
         appointmentDate: '',
         notes: ''
       });
-      // Invalidate and refetch appointments list
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
       alert('¡Turno creado exitosamente!');
     },
@@ -43,13 +72,31 @@ function MedicalAppointments() {
     }
   });
 
+  const cancelAppointment = useMutation({
+    mutationFn: ({ id, reason }) =>
+      axios.put(`${API_URL}/medical/appointments/${id}/cancel`, { cancellationReason: reason }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['appointments'] });
+    },
+    onError: (error) => {
+      const msg = error.response?.data?.error || 'Error al cancelar el turno.';
+      alert(msg);
+    },
+  });
+
   const handleSubmit = (e) => {
     e.preventDefault();
     createAppointment.mutate(formData);
   };
 
+  const handleCancel = (id) => {
+    const reason = window.prompt('Motivo de cancelación (opcional):');
+    if (reason === null) return; // user pressed Cancel in the dialog
+    cancelAppointment.mutate({ id, reason: reason.trim() });
+  };
+
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-5xl mx-auto">
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">
           Turnos Médicos
@@ -139,6 +186,71 @@ function MedicalAppointments() {
               {createAppointment.isPending ? 'Guardando...' : 'Guardar Turno'}
             </button>
           </form>
+        )}
+      </div>
+
+      {/* Appointments list */}
+      <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">Turnos Registrados</h2>
+
+        {isLoading && (
+          <p className="text-gray-500 text-sm">Cargando turnos...</p>
+        )}
+
+        {isError && (
+          <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4">
+            <p className="text-yellow-700 text-sm">
+              No se pudo conectar con el servicio. Asegúrese de que el backend esté en ejecución.
+            </p>
+          </div>
+        )}
+
+        {!isLoading && !isError && appointments?.length === 0 && (
+          <p className="text-gray-500 text-sm">No hay turnos registrados aún.</p>
+        )}
+
+        {!isLoading && !isError && appointments?.length > 0 && (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200 text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Paciente</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Estado</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-100">
+                {appointments.map((appt) => (
+                  <tr key={appt.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 font-medium text-gray-900">{appt.patientName}</td>
+                    <td className="px-4 py-3 text-gray-600">{appt.patientEmail}</td>
+                    <td className="px-4 py-3 text-gray-600">
+                      {new Date(appt.appointmentDate).toLocaleString('es-AR', {
+                        dateStyle: 'short',
+                        timeStyle: 'short',
+                      })}
+                    </td>
+                    <td className="px-4 py-3">
+                      <StatusBadge status={appt.status} />
+                    </td>
+                    <td className="px-4 py-3">
+                      {appt.status !== 'Cancelled' && appt.status !== 'Completed' && (
+                        <button
+                          onClick={() => handleCancel(appt.id)}
+                          disabled={cancelAppointment.isPending}
+                          className="text-red-600 hover:text-red-800 text-xs font-medium disabled:opacity-50"
+                        >
+                          Cancelar
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
