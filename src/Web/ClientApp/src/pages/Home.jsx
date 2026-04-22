@@ -37,7 +37,22 @@ function Home() {
         />
       </div>
 
-      <div className="mt-12 bg-white rounded-lg shadow-md p-8">
+      <div className="mt-8">
+        <a
+          href="/dashboard"
+          className="flex items-center justify-between bg-blue-600 text-white rounded-lg shadow-md px-8 py-6 hover:bg-blue-700 transition-colors"
+        >
+          <div>
+            <h3 className="text-xl font-bold mb-1">📊 Ver Dashboard Analítico</h3>
+            <p className="text-blue-100 text-sm">
+              Resumen de actividad, KPIs y estado de todos los microservicios
+            </p>
+          </div>
+          <span className="text-3xl">→</span>
+        </a>
+      </div>
+
+      <div className="mt-8 bg-white rounded-lg shadow-md p-8">
         <h2 className="text-2xl font-bold text-gray-900 mb-4">
           Arquitectura del Sistema
         </h2>
