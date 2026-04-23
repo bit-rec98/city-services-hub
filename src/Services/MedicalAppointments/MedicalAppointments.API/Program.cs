@@ -1,39 +1,40 @@
-using CityServices.Shared.Common;
-using CityServices.Shared.Events;
-using MedicalAppointments.Application.Commands.CreateAppointment;
-using MedicalAppointments.Domain.Entities;
-using MedicalAppointments.Infrastructure.Data;
-using MedicalAppointments.Infrastructure.EventBus;
-using MedicalAppointments.Infrastructure.Repositories;
-using Microsoft.EntityFrameworkCore;
-using StackExchange.Redis;
+using CityServicesHub.BuildingBlocks.Logging;
+using MedicalAppointments.Application;
+using MedicalAppointments.Infrastructure;
+using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container
+// Configurar Serilog
+builder.Host.UseSerilogLogging();
+
+// Agregar servicios
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new() { Title = "Medical Appointments API", Version = "v1" });
+});
 
-// Database
-builder.Services.AddDbContext<AppointmentsDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+// JWT Authentication
+builder.Services.AddAuthentication("Bearer")
+    .AddJwtBearer("Bearer", options =>
+    {
+        var jwtSettings = builder.Configuration.GetSection("JwtSettings");
+        options.Authority = jwtSettings["Issuer"];
+        options.Audience = jwtSettings["Audience"];
+        options.RequireHttpsMetadata = false; // Solo para desarrollo
+    });
 
-// Redis
-builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
-    ConnectionMultiplexer.Connect(builder.Configuration.GetConnectionString("Redis") ?? "localhost:6379"));
+builder.Services.AddAuthorization();
 
-// MediatR
-builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(CreateAppointmentCommand).Assembly));
+// Servicios de capas Application e Infrastructure
+builder.Services.AddMedicalAppointmentsApplication();
+builder.Services.AddMedicalAppointmentsInfrastructure(builder.Configuration);
 
-// Repositories
-builder.Services.AddScoped<IRepository<Appointment>>(sp =>
-    new Repository<Appointment>(sp.GetRequiredService<AppointmentsDbContext>()));
-builder.Services.AddScoped<IRepository<Doctor>>(sp =>
-    new Repository<Doctor>(sp.GetRequiredService<AppointmentsDbContext>()));
-
-// Event Bus
-builder.Services.AddSingleton<IEventBus, RedisEventBus>();
+// Health Checks
+builder.Services.AddHealthChecks()
+    .AddNpgSql(builder.Configuration.GetConnectionString("MedicalAppointmentsDb") ?? "");
 
 // CORS
 builder.Services.AddCors(options =>
@@ -48,19 +49,23 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-app.UseCors("AllowAll");
+app.UseSerilogRequestLogging();
 app.UseHttpsRedirection();
+app.UseCors("AllowAll");
+app.UseAuthentication();
 app.UseAuthorization();
-app.MapControllers();
 
-// Health check endpoint
-app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "medical-appointments" }));
+app.MapControllers();
+app.MapHealthChecks("/health");
+
+Log.Information("Medical Appointments API iniciando en {Environment}", app.Environment.EnvironmentName);
 
 app.Run();
+
+public partial class Program { }
