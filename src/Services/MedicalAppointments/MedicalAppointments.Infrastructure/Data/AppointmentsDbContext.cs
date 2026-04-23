@@ -23,7 +23,7 @@ public class AppointmentsDbContext : DbContext
             entity.Property(e => e.PatientEmail).IsRequired().HasMaxLength(200);
             entity.Property(e => e.DoctorName).IsRequired().HasMaxLength(200);
             entity.Property(e => e.Specialty).IsRequired().HasMaxLength(100);
-            entity.HasIndex(e => e.AppointmentDate);
+            entity.HasIndex(e => e.ScheduledDate);
             entity.HasIndex(e => e.PatientId);
             entity.HasIndex(e => e.DoctorId);
         });
@@ -32,7 +32,7 @@ public class AppointmentsDbContext : DbContext
         {
             entity.HasKey(e => e.Id);
             entity.Property(e => e.FullName).IsRequired().HasMaxLength(200);
-            entity.Property(e => e.Specialty).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.PrimarySpecialty).IsRequired();
             entity.Property(e => e.LicenseNumber).IsRequired().HasMaxLength(50);
             entity.HasIndex(e => e.LicenseNumber).IsUnique();
         });

@@ -9,12 +9,15 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.0" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.0" />
     <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="8.0.0" />
+    <PackageReference Include="StackExchange.Redis" Version="2.7.33" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\BuildingBlocks\Common\Common.csproj" />
     <ProjectReference Include="..\MedicalAppointments.Application\MedicalAppointments.Application.csproj" />
     <ProjectReference Include="..\MedicalAppointments.Domain\MedicalAppointments.Domain.csproj" />
+    <ProjectReference Include="..\..\..\Shared\Common\CityServices.Shared.Common\CityServices.Shared.Common.csproj" />
+    <ProjectReference Include="..\..\..\Shared\Events\CityServices.Shared.Events\CityServices.Shared.Events.csproj" />
   </ItemGroup>
 
 </Project>
