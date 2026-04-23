@@ -41,3 +41,11 @@ public interface INotificationTemplateService
 {
     Task<(string Subject, string Body)> RenderTemplateAsync(string templateId, Dictionary<string, string> parameters, CancellationToken cancellationToken = default);
 }
+
+/// <summary>
+/// Despachador de notificaciones. Selecciona el canal correcto y despacha la notificación.
+/// </summary>
+public interface INotificationDispatcher
+{
+    Task DispatchAsync(Notification notification, CancellationToken cancellationToken = default);
+}
