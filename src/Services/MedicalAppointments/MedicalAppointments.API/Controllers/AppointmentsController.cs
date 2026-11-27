@@ -82,6 +82,23 @@ public class AppointmentsController : ControllerBase
     }
 
     /// <summary>
+    /// Obtiene los turnos del usuario autenticado.
+    /// </summary>
+    [HttpGet("patient/me")]
+    [Authorize]
+    [ProducesResponseType(typeof(IEnumerable<AppointmentDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetMyAppointments([FromQuery] bool upcomingOnly = false)
+    {
+        var result = await _mediator.Send(new GetPatientAppointmentsQuery(null, upcomingOnly));
+
+        if (result.IsFailure)
+            return Forbid();
+
+        return Ok(result.Value);
+    }
+
+    /// <summary>
     /// Obtiene los turnos de un paciente (solo el propio paciente o un administrador).
     /// </summary>
     [HttpGet("patient/{patientId:guid}")]

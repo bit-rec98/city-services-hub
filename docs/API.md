@@ -125,9 +125,13 @@ Todos los endpoints de turnos requieren token. La identidad del paciente **se to
 
 `200` con el turno. `404` si no existe **o si pertenece a otro paciente** (no se revela su existencia).
 
+### `GET /api/v1/appointments/patient/me?upcomingOnly=false`
+
+Turnos del usuario autenticado. `200`.
+
 ### `GET /api/v1/appointments/patient/{patientId}?upcomingOnly=false`
 
-Turnos del paciente indicado. `200`; `403` si `patientId` no es el del usuario autenticado y este no es administrador. No existe el alias `patient/me`.
+Turnos del paciente indicado. `200`; `403` si `patientId` no es el del usuario autenticado y este no es administrador.
 
 ### `POST /api/v1/appointments/{id}/confirm`
 

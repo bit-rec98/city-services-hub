@@ -46,7 +46,7 @@ Resumen verificable del estado del proyecto. Cada afirmación se contrastó con 
 **Frontend y API desalineados**
 
 - `/auth/refresh`, `/auth/forgot-password` y `/auth/reset-password` no existen en la API.
-- La página de turnos llama a `/appointments/patient/me`, `/doctors` y `/appointments/available-slots`, que no existen.
+- La página de turnos llama a `/doctors` y `/appointments/available-slots`, que no existen.
 
 **Eventos**
 

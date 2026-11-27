@@ -136,6 +136,34 @@ public class AppointmentAuthorizationTests
         result.IsSuccess.Should().BeTrue();
     }
 
+    [Fact]
+    public async Task GetPatientAppointments_WithoutPatientId_ReturnsTheCallersAppointments()
+    {
+        var appointment = ScheduledAppointmentOf(_ownerId);
+        _appointments
+            .Setup(r => r.GetByPatientAsync(_ownerId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { appointment });
+        var handler = new GetPatientAppointmentsQueryHandler(_appointments.Object, UserWith(_ownerId, "Citizen").Object);
+
+        var result = await handler.Handle(new GetPatientAppointmentsQuery(null), default);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Should().ContainSingle();
+        _appointments.Verify(
+            r => r.GetByPatientAsync(It.Is<Guid>(id => id != _ownerId), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GetPatientAppointments_WithoutPatientIdAndUnauthenticated_Fails()
+    {
+        var handler = new GetPatientAppointmentsQueryHandler(_appointments.Object, UserWith(null).Object);
+
+        var result = await handler.Handle(new GetPatientAppointmentsQuery(null), default);
+
+        result.IsFailure.Should().BeTrue();
+        _appointments.VerifyNoOtherCalls();
+    }
+
     // ---- confirm ----
 
     [Fact]
