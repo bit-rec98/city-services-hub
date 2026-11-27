@@ -180,6 +180,10 @@ public class RefreshTokenConfiguration : IEntityTypeConfiguration<RefreshToken>
 
         builder.HasKey(r => r.Id);
 
+        // El Id lo asigna el dominio (Guid.NewGuid()). Sin esto EF supone que un token nuevo con
+        // Id ya asignado existe en la base y emite un UPDATE en lugar de un INSERT.
+        builder.Property(r => r.Id).ValueGeneratedNever();
+
         builder.Property(r => r.Token)
             .HasMaxLength(500)
             .IsRequired();
