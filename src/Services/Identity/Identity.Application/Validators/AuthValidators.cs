@@ -1,5 +1,6 @@
 using FluentValidation;
 using Identity.Application.Commands;
+using Identity.Domain.Enums;
 
 namespace Identity.Application.Validators;
 
@@ -27,8 +28,11 @@ public class RegisterUserCommandValidator : AbstractValidator<RegisterUserComman
             .NotEmpty().WithMessage("El número de documento es requerido.")
             .Matches(@"^\d{7,8}$").WithMessage("El número de documento debe tener entre 7 y 8 dígitos.");
 
+        // DocumentType llega como int: IsInEnum() solo funciona sobre propiedades de tipo enum y
+        // rechazaría siempre cualquier valor, por lo que se comprueba contra el enum de dominio.
         RuleFor(x => x.DocumentType)
-            .IsInEnum().WithMessage("El tipo de documento no es válido.");
+            .Must(value => Enum.IsDefined(typeof(DocumentType), value))
+            .WithMessage("El tipo de documento no es válido.");
 
         RuleFor(x => x.Password)
             .NotEmpty().WithMessage("La contraseña es requerida.")
