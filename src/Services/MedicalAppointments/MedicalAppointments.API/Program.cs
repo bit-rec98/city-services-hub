@@ -1,5 +1,7 @@
 using CityServicesHub.BuildingBlocks.Logging;
 using CityServicesHub.BuildingBlocks.Security;
+using Microsoft.EntityFrameworkCore;
+using MedicalAppointments.Infrastructure.Data;
 using MedicalAppointments.Application;
 using MedicalAppointments.Infrastructure;
 using Serilog;
@@ -33,6 +35,14 @@ builder.Services.AddHealthChecks()
 builder.Services.AddCityServicesCors(builder.Configuration);
 
 var app = builder.Build();
+
+// Aplica las migraciones pendientes solo si se habilita de forma explícita (Database:MigrateOnStartup),
+// p. ej. en desarrollo local. Por defecto el esquema se aplica con `dotnet ef database update`.
+if (app.Configuration.GetValue<bool>("Database:MigrateOnStartup"))
+{
+    using var migrationScope = app.Services.CreateScope();
+    migrationScope.ServiceProvider.GetRequiredService<MedicalAppointmentsDbContext>().Database.Migrate();
+}
 
 if (app.Environment.IsDevelopment())
 {
