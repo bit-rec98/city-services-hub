@@ -24,7 +24,7 @@ public class AppointmentsController : ControllerBase
     }
 
     /// <summary>
-    /// Crea un nuevo turno médico.
+    /// Crea un nuevo turno médico. El paciente es el usuario autenticado.
     /// </summary>
     [HttpPost]
     [Authorize]
@@ -64,7 +64,7 @@ public class AppointmentsController : ControllerBase
     }
 
     /// <summary>
-    /// Obtiene un turno por ID.
+    /// Obtiene un turno por ID (solo su paciente o un administrador).
     /// </summary>
     [HttpGet("{id:guid}")]
     [Authorize]
@@ -82,17 +82,21 @@ public class AppointmentsController : ControllerBase
     }
 
     /// <summary>
-    /// Obtiene los turnos de un paciente.
+    /// Obtiene los turnos de un paciente (solo el propio paciente o un administrador).
     /// </summary>
     [HttpGet("patient/{patientId:guid}")]
     [Authorize]
     [ProducesResponseType(typeof(IEnumerable<AppointmentDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> GetPatientAppointments(
         Guid patientId, 
         [FromQuery] bool upcomingOnly = false)
     {
         var query = new GetPatientAppointmentsQuery(patientId, upcomingOnly);
         var result = await _mediator.Send(query);
+
+        if (result.IsFailure)
+            return Forbid();
 
         return Ok(result.Value);
     }
