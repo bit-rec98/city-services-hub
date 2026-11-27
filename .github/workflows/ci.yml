@@ -37,8 +37,12 @@ jobs:
     - name: Build solution
       run: dotnet build CityServicesHub.sln --configuration Release --no-restore
     
-    - name: Run tests
-      run: dotnet test CityServicesHub.sln --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage" --results-directory ./coverage
+    - name: Run unit tests
+      run: dotnet test CityServicesHub.sln --configuration Release --no-build --filter "Category!=Integration" --verbosity normal --collect:"XPlat Code Coverage" --results-directory ./coverage
+
+    # Levantan PostgreSQL en Docker con Testcontainers (el runner ubuntu-latest incluye Docker).
+    - name: Run integration tests
+      run: dotnet test CityServicesHub.sln --configuration Release --no-build --filter "Category=Integration" --verbosity normal
     
     - name: Upload coverage reports
       uses: codecov/codecov-action@v3
