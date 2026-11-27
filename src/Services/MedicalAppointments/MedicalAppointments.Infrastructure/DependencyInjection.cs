@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 using MedicalAppointments.Domain.Interfaces;
 using MedicalAppointments.Infrastructure.Data;
 using MedicalAppointments.Infrastructure.Repositories;
@@ -17,10 +18,20 @@ public static class DependencyInjection
         IConfiguration configuration)
     {
         // PostgreSQL con EF Core
-        services.AddDbContext<MedicalAppointmentsDbContext>(options =>
+        // Las colecciones y diccionarios se guardan como jsonb: Npgsql 8 exige habilitar
+        // explícitamente la serialización JSON dinámica en el data source.
+        services.AddSingleton(_ =>
+        {
+            var connectionString = configuration.GetConnectionString("MedicalAppointmentsDb")
+                ?? throw new InvalidOperationException("ConnectionStrings:MedicalAppointmentsDb no está configurado.");
+
+            return new NpgsqlDataSourceBuilder(connectionString).EnableDynamicJson().Build();
+        });
+
+        services.AddDbContext<MedicalAppointmentsDbContext>((serviceProvider, options) =>
         {
             options.UseNpgsql(
-                configuration.GetConnectionString("MedicalAppointmentsDb"),
+                serviceProvider.GetRequiredService<NpgsqlDataSource>(),
                 npgsqlOptions =>
                 {
                     npgsqlOptions.EnableRetryOnFailure(

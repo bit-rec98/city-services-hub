@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 using Notifications.Application.Interfaces;
 using Notifications.Application.Services;
 using Notifications.Infrastructure.Data;
@@ -19,10 +20,20 @@ public static class DependencyInjection
         IConfiguration configuration)
     {
         // PostgreSQL con EF Core
-        services.AddDbContext<NotificationsDbContext>(options =>
+        // Las colecciones y diccionarios se guardan como jsonb: Npgsql 8 exige habilitar
+        // explícitamente la serialización JSON dinámica en el data source.
+        services.AddSingleton(_ =>
+        {
+            var connectionString = configuration.GetConnectionString("NotificationsDb")
+                ?? throw new InvalidOperationException("ConnectionStrings:NotificationsDb no está configurado.");
+
+            return new NpgsqlDataSourceBuilder(connectionString).EnableDynamicJson().Build();
+        });
+
+        services.AddDbContext<NotificationsDbContext>((serviceProvider, options) =>
         {
             options.UseNpgsql(
-                configuration.GetConnectionString("NotificationsDb"),
+                serviceProvider.GetRequiredService<NpgsqlDataSource>(),
                 npgsqlOptions =>
                 {
                     npgsqlOptions.EnableRetryOnFailure(
