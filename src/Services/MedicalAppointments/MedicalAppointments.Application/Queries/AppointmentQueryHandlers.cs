@@ -1,5 +1,7 @@
 using CityServicesHub.BuildingBlocks.Common.Application;
+using CityServicesHub.BuildingBlocks.Common.Interfaces;
 using MedicalAppointments.Application.DTOs;
+using MedicalAppointments.Application.Security;
 using MedicalAppointments.Domain.Entities;
 using MedicalAppointments.Domain.Interfaces;
 
@@ -11,10 +13,14 @@ namespace MedicalAppointments.Application.Queries;
 public class GetAppointmentByIdQueryHandler : IQueryHandler<GetAppointmentByIdQuery, AppointmentDto>
 {
     private readonly IAppointmentRepository _appointmentRepository;
+    private readonly ICurrentUserService _currentUser;
 
-    public GetAppointmentByIdQueryHandler(IAppointmentRepository appointmentRepository)
+    public GetAppointmentByIdQueryHandler(
+        IAppointmentRepository appointmentRepository,
+        ICurrentUserService currentUser)
     {
         _appointmentRepository = appointmentRepository;
+        _currentUser = currentUser;
     }
 
     public async Task<Result<AppointmentDto>> Handle(
@@ -23,8 +29,8 @@ public class GetAppointmentByIdQueryHandler : IQueryHandler<GetAppointmentByIdQu
     {
         var appointment = await _appointmentRepository.GetByIdAsync(request.AppointmentId, cancellationToken);
         
-        if (appointment is null)
-            return Result.Failure<AppointmentDto>(new Error("Appointment.NotFound", "El turno no fue encontrado."));
+        if (appointment is null || !AppointmentAccess.CanAccess(appointment, _currentUser))
+            return Result.Failure<AppointmentDto>(AppointmentAccess.AppointmentNotFound);
 
         return Result.Success(MapToDto(appointment));
     }
@@ -67,16 +73,23 @@ public class GetAppointmentByIdQueryHandler : IQueryHandler<GetAppointmentByIdQu
 public class GetPatientAppointmentsQueryHandler : IQueryHandler<GetPatientAppointmentsQuery, IEnumerable<AppointmentDto>>
 {
     private readonly IAppointmentRepository _appointmentRepository;
+    private readonly ICurrentUserService _currentUser;
 
-    public GetPatientAppointmentsQueryHandler(IAppointmentRepository appointmentRepository)
+    public GetPatientAppointmentsQueryHandler(
+        IAppointmentRepository appointmentRepository,
+        ICurrentUserService currentUser)
     {
         _appointmentRepository = appointmentRepository;
+        _currentUser = currentUser;
     }
 
     public async Task<Result<IEnumerable<AppointmentDto>>> Handle(
         GetPatientAppointmentsQuery request, 
         CancellationToken cancellationToken)
     {
+        if (!AppointmentAccess.CanAccessPatient(request.PatientId, _currentUser))
+            return Result.Failure<IEnumerable<AppointmentDto>>(AppointmentAccess.PatientForbidden);
+
         var appointments = request.UpcomingOnly
             ? await _appointmentRepository.GetUpcomingByPatientAsync(request.PatientId, cancellationToken)
             : await _appointmentRepository.GetByPatientAsync(request.PatientId, cancellationToken);

@@ -22,6 +22,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\BuildingBlocks\Logging\Logging.csproj" />
+    <ProjectReference Include="..\BuildingBlocks\Security\Security.csproj" />
   </ItemGroup>
 
 </Project>

@@ -86,6 +86,7 @@ public class TokenService : ITokenService
                 ValidateAudience = true,
                 ValidAudience = jwtSettings["Audience"],
                 ValidateLifetime = true,
+                ValidAlgorithms = new[] { SecurityAlgorithms.HmacSha256 },
                 ClockSkew = TimeSpan.Zero
             }, out _);
 

@@ -1,4 +1,5 @@
 using CityServicesHub.BuildingBlocks.Logging;
+using CityServicesHub.BuildingBlocks.Security;
 using MedicalAppointments.Application;
 using MedicalAppointments.Infrastructure;
 using Serilog;
@@ -16,17 +17,9 @@ builder.Services.AddSwaggerGen(c =>
     c.SwaggerDoc("v1", new() { Title = "Medical Appointments API", Version = "v1" });
 });
 
-// JWT Authentication
-builder.Services.AddAuthentication("Bearer")
-    .AddJwtBearer("Bearer", options =>
-    {
-        var jwtSettings = builder.Configuration.GetSection("JwtSettings");
-        options.Authority = jwtSettings["Issuer"];
-        options.Audience = jwtSettings["Audience"];
-        options.RequireHttpsMetadata = false; // Solo para desarrollo
-    });
-
-builder.Services.AddAuthorization();
+// JWT Authentication (validación compartida entre servicios)
+builder.Services.AddCityServicesJwtAuthentication(builder.Configuration);
+builder.Services.AddCityServicesCurrentUser();
 
 // Servicios de capas Application e Infrastructure
 builder.Services.AddMedicalAppointmentsApplication();
@@ -37,15 +30,7 @@ builder.Services.AddHealthChecks()
     .AddNpgSql(builder.Configuration.GetConnectionString("MedicalAppointmentsDb") ?? "");
 
 // CORS
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AllowAll", policy =>
-    {
-        policy.AllowAnyOrigin()
-              .AllowAnyMethod()
-              .AllowAnyHeader();
-    });
-});
+builder.Services.AddCityServicesCors(builder.Configuration);
 
 var app = builder.Build();
 
@@ -57,7 +42,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseSerilogRequestLogging();
 app.UseHttpsRedirection();
-app.UseCors("AllowAll");
+app.UseCors(CorsExtensions.PolicyName);
 app.UseAuthentication();
 app.UseAuthorization();
 

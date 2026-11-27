@@ -1,4 +1,5 @@
 using CityServicesHub.BuildingBlocks.Logging;
+using CityServicesHub.BuildingBlocks.Security;
 using AspNetCoreRateLimit;
 using Serilog;
 
@@ -17,17 +18,8 @@ builder.Services.AddSingleton<IRateLimitConfiguration, RateLimitConfiguration>()
 builder.Services.AddReverseProxy()
     .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"));
 
-// JWT Authentication
-builder.Services.AddAuthentication("Bearer")
-    .AddJwtBearer("Bearer", options =>
-    {
-        var jwtSettings = builder.Configuration.GetSection("JwtSettings");
-        options.Authority = jwtSettings["Authority"];
-        options.Audience = jwtSettings["Audience"];
-        options.RequireHttpsMetadata = false;
-    });
-
-builder.Services.AddAuthorization();
+// JWT Authentication (validación compartida entre servicios)
+builder.Services.AddCityServicesJwtAuthentication(builder.Configuration);
 
 // CORS
 builder.Services.AddCors(options =>

@@ -1,5 +1,7 @@
 using CityServicesHub.BuildingBlocks.Common.Application;
+using CityServicesHub.BuildingBlocks.Common.Interfaces;
 using MedicalAppointments.Application.DTOs;
+using MedicalAppointments.Application.Security;
 using MedicalAppointments.Domain.Entities;
 using MedicalAppointments.Domain.Interfaces;
 
@@ -13,21 +15,33 @@ public class CreateAppointmentCommandHandler : ICommandHandler<CreateAppointment
     private readonly IAppointmentRepository _appointmentRepository;
     private readonly IDoctorRepository _doctorRepository;
     private readonly IHealthCenterRepository _healthCenterRepository;
+    private readonly ICurrentUserService _currentUser;
 
     public CreateAppointmentCommandHandler(
         IAppointmentRepository appointmentRepository,
         IDoctorRepository doctorRepository,
-        IHealthCenterRepository healthCenterRepository)
+        IHealthCenterRepository healthCenterRepository,
+        ICurrentUserService currentUser)
     {
         _appointmentRepository = appointmentRepository;
         _doctorRepository = doctorRepository;
         _healthCenterRepository = healthCenterRepository;
+        _currentUser = currentUser;
     }
 
     public async Task<Result<AppointmentDto>> Handle(
         CreateAppointmentCommand request, 
         CancellationToken cancellationToken)
     {
+        // El titular del turno es el usuario autenticado. Solo un administrador puede
+        // crear turnos a nombre de otro paciente; el PatientId del cuerpo no se confía.
+        if (!AppointmentAccess.TryGetUserId(_currentUser, out var currentUserId))
+            return Result.Failure<AppointmentDto>(AppointmentAccess.Unauthenticated);
+
+        var patientId = AppointmentAccess.IsAdministrator(_currentUser) && request.PatientId != Guid.Empty
+            ? request.PatientId
+            : currentUserId;
+
         // Obtener médico
         var doctor = await _doctorRepository.GetByIdAsync(request.DoctorId, cancellationToken);
         if (doctor is null)
@@ -57,7 +71,7 @@ public class CreateAppointmentCommandHandler : ICommandHandler<CreateAppointment
 
         // Crear turno
         var appointment = Appointment.Create(
-            request.PatientId,
+            patientId,
             request.PatientName,
             request.PatientDocumentNumber,
             request.DoctorId,
@@ -117,18 +131,22 @@ public class CreateAppointmentCommandHandler : ICommandHandler<CreateAppointment
 public class CancelAppointmentCommandHandler : ICommandHandler<CancelAppointmentCommand>
 {
     private readonly IAppointmentRepository _appointmentRepository;
+    private readonly ICurrentUserService _currentUser;
 
-    public CancelAppointmentCommandHandler(IAppointmentRepository appointmentRepository)
+    public CancelAppointmentCommandHandler(
+        IAppointmentRepository appointmentRepository,
+        ICurrentUserService currentUser)
     {
         _appointmentRepository = appointmentRepository;
+        _currentUser = currentUser;
     }
 
     public async Task<Result> Handle(CancelAppointmentCommand request, CancellationToken cancellationToken)
     {
         var appointment = await _appointmentRepository.GetByIdAsync(request.AppointmentId, cancellationToken);
         
-        if (appointment is null)
-            return Result.Failure(new Error("Appointment.NotFound", "El turno no fue encontrado."));
+        if (appointment is null || !AppointmentAccess.CanAccess(appointment, _currentUser))
+            return Result.Failure(AppointmentAccess.AppointmentNotFound);
 
         if (!appointment.CanBeCancelled)
             return Result.Failure(new Error("Appointment.CannotCancel", "El turno no puede ser cancelado."));
@@ -146,18 +164,22 @@ public class CancelAppointmentCommandHandler : ICommandHandler<CancelAppointment
 public class ConfirmAppointmentCommandHandler : ICommandHandler<ConfirmAppointmentCommand>
 {
     private readonly IAppointmentRepository _appointmentRepository;
+    private readonly ICurrentUserService _currentUser;
 
-    public ConfirmAppointmentCommandHandler(IAppointmentRepository appointmentRepository)
+    public ConfirmAppointmentCommandHandler(
+        IAppointmentRepository appointmentRepository,
+        ICurrentUserService currentUser)
     {
         _appointmentRepository = appointmentRepository;
+        _currentUser = currentUser;
     }
 
     public async Task<Result> Handle(ConfirmAppointmentCommand request, CancellationToken cancellationToken)
     {
         var appointment = await _appointmentRepository.GetByIdAsync(request.AppointmentId, cancellationToken);
         
-        if (appointment is null)
-            return Result.Failure(new Error("Appointment.NotFound", "El turno no fue encontrado."));
+        if (appointment is null || !AppointmentAccess.CanAccess(appointment, _currentUser))
+            return Result.Failure(AppointmentAccess.AppointmentNotFound);
 
         try
         {

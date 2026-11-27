@@ -1,281 +1,175 @@
-# API Documentation
+# Documentación de la API
 
-## API Gateway
+Esta guía describe las rutas implementadas hoy. La fuente de verdad es el código de los controladores y Swagger (disponible solo en `Development`). Lo planificado y no implementado se indica como tal. Estado general: [SUMMARY.md](../SUMMARY.md).
 
-Base URL: `http://localhost:5000`
+## Información general
 
-El API Gateway actúa como punto de entrada único para todos los microservicios. Utiliza Ocelot para enrutamiento y gestión de solicitudes.
+| | |
+|---|---|
+| Versión | `v1`, incluida en la ruta: `/api/v1/...` |
+| Contenido | `application/json` |
+| Autenticación | JWT Bearer (HS256), emitido por Identity. Cabecera `Authorization: Bearer <token>` |
+| Base URL por el gateway | `http://localhost:5000` |
+| Base URL directa (Docker Compose) | Identity `http://localhost:5001`, Medical Appointments `http://localhost:5002` |
+| Swagger (solo `Development`) | `/swagger` en cada servicio |
+| Health check | `GET /health` en cada servicio y en el gateway |
 
-## Rutas
+> **Nota sobre el gateway:** sus rutas están definidas, pero sus destinos apuntan a `localhost`, así que solo funcionan cuando los servicios corren fuera de Docker en los puertos 5001 (Identity), 5002 (Medical Appointments) y 5003 (Notifications). Ver [SUMMARY.md](../SUMMARY.md).
 
-### Medical Appointments Service
+### Rutas del gateway
 
-Base: `/medical`
+El gateway reenvía sin reescribir la ruta:
 
-#### POST /medical/appointments
-Crear un nuevo turno médico
+| Ruta | Servicio |
+|---|---|
+| `/api/v1/auth/**` | Identity |
+| `/api/v1/users/**` | Identity (hoy no existen endpoints bajo esta ruta) |
+| `/api/v1/appointments/**`, `/api/v1/healthcenters/**` | Medical Appointments |
+| `/api/v1/notifications/**` | Notifications |
 
-**Request:**
+Límites por cliente: 10 solicitudes por segundo y 100 por minuto en general, y 5 por minuto en rutas que terminan en `/auth/login`. Al excederlos responde `429`.
+
+### Token
+
+El token contiene los claims `sub` (id de usuario), `email`, `jti`, `iat` y un claim `role` por cada rol. Se valida emisor (`CityServicesHub`), audiencia (`CityServicesHub`), expiración y firma, y solo se acepta HS256. Expira a los `JwtSettings:ExpirationMinutes` (60 por defecto). Roles disponibles: `Citizen`, `MunicipalEmployee`, `HealthWorker`, `TaxAgent`, `HRManager`, `LegislativeStaff`, `Administrator`, `SuperAdmin`.
+
+### Errores
+
+Las respuestas de error de los controladores tienen la forma `{ "message": "..." }`. En Identity, las excepciones no controladas pasan por un middleware que responde `{ "message": "...", "code": "...", "errors": { "campo": ["..."] } }` (`code` y `errors` pueden faltar). Los errores internos nunca devuelven detalles de la implementación.
+
+| Código | Cuándo |
+|---|---|
+| 400 | Datos inválidos o regla de negocio incumplida |
+| 401 | Falta el token, o es inválido o expiró |
+| 403 | Autenticado pero sin permiso |
+| 404 | El recurso no existe, **o no pertenece al usuario** (ver Medical Appointments) |
+| 409 | Conflicto (email o documento ya registrados, horario ocupado) |
+| 429 | Rate limit excedido |
+| 500 | Error inesperado |
+
+## Identity — `/api/v1/auth`
+
+### `POST /api/v1/auth/register` (anónimo)
+
+Registra un usuario.
+
 ```json
 {
-  "patientId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "firstName": "Juan",
+  "lastName": "Pérez",
+  "email": "juan.perez@example.com",
+  "documentNumber": "12345678",
+  "documentType": 0,
+  "password": "<contraseña>",
+  "confirmPassword": "<contraseña>"
+}
+```
+
+- `documentType`: `0` DNI, `1` CUIT, `2` CUIL, `3` Passport, `4` ForeignId.
+- `documentNumber`: 7 u 8 dígitos. `email`: formato válido, máximo 256 caracteres. Nombre y apellido: obligatorios, máximo 100.
+- `password`: mínimo 8 caracteres, con mayúscula, minúscula, número y carácter especial; `confirmPassword` debe coincidir.
+- Respuestas: `201` con el usuario (`UserDto`), `400` datos inválidos, `409` email o documento ya registrados.
+
+### `POST /api/v1/auth/login` (anónimo)
+
+```json
+{ "email": "juan.perez@example.com", "password": "<contraseña>", "twoFactorCode": null }
+```
+
+- `200`: `{ "user": UserDto, "accessToken": "...", "refreshToken": "...", "expiresAt": "..." }`.
+- `200` con `{ "requiresTwoFactor": true, "message": "..." }` si el usuario tiene 2FA habilitado y no envió código. **El código aún no se verifica** (ver SUMMARY.md).
+- `401` credenciales inválidas, cuenta bloqueada o inactiva. `400` datos inválidos.
+
+### `GET /api/v1/auth/me` (requiere token)
+
+Devuelve el `UserDto` del usuario autenticado. `401` sin token; `404` si el usuario ya no existe.
+
+### `GET /api/v1/auth/{id}` (rol `Administrator` o `SuperAdmin`)
+
+Devuelve un usuario por id. `403` para otros roles; `404` si no existe.
+
+`UserDto`: `id`, `firstName`, `lastName`, `fullName`, `email`, `documentNumber`, `documentType`, `status`, `emailVerified`, `twoFactorEnabled`, `roles`, `lastLoginAt`, `createdAt`.
+
+**No implementado:** refresco de tokens, logout, recuperación y cambio de contraseña, habilitar 2FA.
+
+## Medical Appointments — `/api/v1/appointments`
+
+Todos los endpoints de turnos requieren token. La identidad del paciente **se toma siempre del token**, nunca del cuerpo ni de la ruta. Un turno solo lo puede consultar o modificar su paciente titular o un usuario `Administrator`/`SuperAdmin`.
+
+### `POST /api/v1/appointments`
+
+```json
+{
   "patientName": "Juan Pérez",
+  "patientDocumentNumber": "12345678",
+  "patientPhoneNumber": null,
   "patientEmail": "juan.perez@example.com",
-  "doctorId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-  "appointmentDate": "2026-02-15T10:00:00Z",
-  "notes": "Consulta general"
+  "doctorId": "00000000-0000-0000-0000-000000000000",
+  "healthCenterId": "00000000-0000-0000-0000-000000000000",
+  "specialty": 0,
+  "scheduledDate": "2026-12-15T00:00:00",
+  "startTime": "10:00:00",
+  "durationMinutes": null,
+  "attentionType": 0,
+  "reason": "Consulta general"
 }
 ```
 
-**Response (201 Created):**
-```json
-{
-  "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
-  "patientId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-  "patientName": "Juan Pérez",
-  "patientEmail": "juan.perez@example.com",
-  "doctorId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-  "doctorName": "Dr. María García",
-  "specialty": "Medicina General",
-  "appointmentDate": "2026-02-15T10:00:00Z",
-  "duration": "00:30:00",
-  "status": "Scheduled",
-  "notes": "Consulta general",
-  "createdAt": "2026-01-30T20:00:00Z"
-}
-```
+- `patientId` es opcional y **se ignora**, salvo para `Administrator`/`SuperAdmin`, que pueden crear turnos a nombre de otro paciente.
+- `specialty`: entero del enum `MedicalSpecialty` (`0` GeneralMedicine, `1` Pediatrics, `2` Cardiology, …; ver `MedicalEnums.cs`).
+- `attentionType`: `0` InPerson, `1` Telemedicine, `2` HomeVisit. `durationMinutes` omitido usa la duración por defecto del médico.
+- Respuestas: `201` con el turno (`AppointmentDto`), `400` médico o centro inexistente u otro error de negocio, `409` el médico ya tiene un turno en ese horario.
+- **Sin validación de entrada todavía:** los validadores de este servicio no están activos (ver SUMMARY.md).
 
-#### GET /medical/appointments/{id}
-Obtener un turno médico por ID
+### `GET /api/v1/appointments/{id}`
 
-**Response (200 OK):**
-```json
-{
-  "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
-  "patientName": "Juan Pérez",
-  "doctorName": "Dr. María García",
-  "appointmentDate": "2026-02-15T10:00:00Z",
-  "status": "Scheduled"
-}
-```
+`200` con el turno. `404` si no existe **o si pertenece a otro paciente** (no se revela su existencia).
 
-**Error (404 Not Found):**
-```json
-{
-  "error": "Appointment not found"
-}
-```
+### `GET /api/v1/appointments/patient/{patientId}?upcomingOnly=false`
 
-### Legislative Management Service
+Turnos del paciente indicado. `200`; `403` si `patientId` no es el del usuario autenticado y este no es administrador. No existe el alias `patient/me`.
 
-Base: `/legislative`
+### `POST /api/v1/appointments/{id}/confirm`
 
-#### Endpoints (To be implemented)
-- GET /legislative/processes
-- POST /legislative/processes
-- GET /legislative/processes/{id}
-- PUT /legislative/processes/{id}
+Confirma un turno en estado `Scheduled`. `200` `{ "message": "..." }`; `400` si el estado no lo permite; `404` si no existe o es ajeno.
 
-### HR Management Service
+### `POST /api/v1/appointments/{id}/cancel`
 
-Base: `/hr`
+Cuerpo: `{ "reason": "Motivo de la cancelación" }`. `200` `{ "message": "..." }`; `400` si el turno no puede cancelarse; `404` si no existe o es ajeno.
 
-#### Endpoints (To be implemented)
-- GET /hr/employees
-- POST /hr/employees
-- GET /hr/employees/{id}
-- PUT /hr/employees/{id}
-- POST /hr/leaves
-- GET /hr/evaluations
+`AppointmentDto`: `id`, `patientId`, `patientName`, `patientDocumentNumber`, `patientPhoneNumber`, `patientEmail`, `doctorId`, `doctorName`, `specialty`, `healthCenterId`, `healthCenterName`, `scheduledDate`, `startTime` (`HH:mm`), `endTime`, `durationMinutes`, `status`, `attentionType`, `reason`, `notes`, `cancellationReason`, `createdAt`, `confirmedAt`, `cancelledAt`, `completedAt`. `status` es uno de `Scheduled`, `Confirmed`, `InProgress`, `Completed`, `Cancelled`, `NoShow`, `Rescheduled`.
 
-### Tax Services
+### `GET /api/v1/healthcenters?city=&specialty=` (anónimo)
 
-Base: `/tax`
+Lista centros de salud (`id`, `name`, `code`, `address`, `city`, `province`, `phoneNumber`, `email`, `latitude`, `longitude`, `isActive`, `specialties`).
 
-#### Endpoints (To be implemented)
-- GET /tax/taxes
-- GET /tax/taxes/{id}
-- POST /tax/payments
-- GET /tax/debts/{citizenId}
+**No implementado:** reprogramar, completar, marcar ausencia, médicos y horarios disponibles por API.
 
-## Health Checks
+## Notifications — `/api/v1/notifications`
 
-Todos los servicios exponen un endpoint de health check:
+Todos los endpoints requieren token y operan sobre el usuario autenticado. Este servicio no está en `docker-compose.yml`.
 
-- API Gateway: `GET http://localhost:5000/health`
-- Medical Appointments: `GET http://localhost:5001/health`
-- Legislative: `GET http://localhost:5002/health`
-- HR Management: `GET http://localhost:5003/health`
-- Tax Services: `GET http://localhost:5004/health`
+| Método y ruta | Descripción | Respuestas |
+|---|---|---|
+| `GET /api/v1/notifications?unreadOnly=false&page=1&pageSize=20` | Notificaciones del usuario | `200` |
+| `GET /api/v1/notifications/unread-count` | Cantidad de no leídas | `200` |
+| `POST /api/v1/notifications/{id}/read` | Marca una como leída | `204`, `403`, `404` |
+| `POST /api/v1/notifications/read-all` | Marca todas como leídas | `204` |
 
-**Response:**
-```json
-{
-  "status": "healthy",
-  "service": "medical-appointments"
-}
-```
+El envío por email, SMS y push es un stub; hoy no se envía nada externo.
 
-## Autenticación y Autorización
+## Eventos de dominio
 
-### JWT Authentication (To be implemented)
+Los turnos generan eventos de dominio (`AppointmentCreatedEvent`, `AppointmentConfirmedEvent`, `AppointmentCancelledEvent`, …), pero **hoy no se publican en ningún bus**: `RedisEventBus` no está registrado y ningún flujo activo lo invoca.
 
-Todas las peticiones (excepto health checks) requerirán un token JWT válido.
-
-**Header:**
-```
-Authorization: Bearer <token>
-```
-
-**Token Payload:**
-```json
-{
-  "sub": "user-id",
-  "name": "Juan Pérez",
-  "email": "juan@example.com",
-  "role": "citizen",
-  "exp": 1672531199
-}
-```
-
-## Rate Limiting
-
-El API Gateway implementa rate limiting para prevenir abuso:
-
-- **Límite:** 100 requests por minuto por IP
-- **Respuesta cuando se excede:**
-  - Status Code: 429 Too Many Requests
-  - Header: `X-RateLimit-Remaining: 0`
-
-## CORS
-
-El API Gateway está configurado con CORS permisivo en desarrollo:
-
-```
-Access-Control-Allow-Origin: *
-Access-Control-Allow-Methods: GET, POST, PUT, DELETE
-Access-Control-Allow-Headers: *
-```
-
-## Códigos de Estado HTTP
-
-- **200 OK:** Solicitud exitosa
-- **201 Created:** Recurso creado exitosamente
-- **400 Bad Request:** Datos de entrada inválidos
-- **401 Unauthorized:** No autenticado
-- **403 Forbidden:** No autorizado
-- **404 Not Found:** Recurso no encontrado
-- **429 Too Many Requests:** Rate limit excedido
-- **500 Internal Server Error:** Error del servidor
-
-## Eventos del Dominio
-
-Los microservicios publican eventos de dominio a través de Redis Pub/Sub:
-
-### AppointmentCreatedEvent
-```json
-{
-  "eventId": "uuid",
-  "occurredOn": "2026-01-30T20:00:00Z",
-  "eventType": "AppointmentCreatedEvent",
-  "appointmentId": "uuid",
-  "patientId": "uuid",
-  "doctorId": "uuid",
-  "appointmentDate": "2026-02-15T10:00:00Z",
-  "specialty": "Medicina General"
-}
-```
-
-### TaxPaymentCompletedEvent
-```json
-{
-  "eventId": "uuid",
-  "occurredOn": "2026-01-30T20:00:00Z",
-  "eventType": "TaxPaymentCompletedEvent",
-  "paymentId": "uuid",
-  "citizenId": "uuid",
-  "amount": 1500.00,
-  "taxType": "Impuesto Municipal"
-}
-```
-
-## Swagger/OpenAPI
-
-Cada microservicio expone documentación Swagger en desarrollo:
-
-- Medical Appointments: http://localhost:5001/swagger
-- Legislative: http://localhost:5002/swagger
-- HR Management: http://localhost:5003/swagger
-- Tax Services: http://localhost:5004/swagger
-
-## Ejemplos de Uso
-
-### JavaScript/Axios
-
-```javascript
-import axios from 'axios';
-
-const API_URL = 'http://localhost:5000';
-
-// Crear turno médico
-const createAppointment = async (data) => {
-  try {
-    const response = await axios.post(`${API_URL}/medical/appointments`, data);
-    return response.data;
-  } catch (error) {
-    console.error('Error creating appointment:', error.response.data);
-    throw error;
-  }
-};
-
-// Obtener turno médico
-const getAppointment = async (id) => {
-  try {
-    const response = await axios.get(`${API_URL}/medical/appointments/${id}`);
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching appointment:', error.response.data);
-    throw error;
-  }
-};
-```
-
-### cURL
+## Ejemplo con cURL
 
 ```bash
-# Crear turno médico
-curl -X POST http://localhost:5000/medical/appointments \
+# 1. Iniciar sesión y guardar el token (requiere jq)
+TOKEN=$(curl -s -X POST http://localhost:5001/api/v1/auth/login \
   -H "Content-Type: application/json" \
-  -d '{
-    "patientId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-    "patientName": "Juan Pérez",
-    "patientEmail": "juan@example.com",
-    "doctorId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-    "appointmentDate": "2026-02-15T10:00:00Z",
-    "notes": "Consulta general"
-  }'
+  -d '{"email":"juan.perez@example.com","password":"<contraseña>"}' | jq -r .accessToken)
 
-# Obtener turno médico
-curl http://localhost:5000/medical/appointments/7c9e6679-7425-40de-944b-e07fc1f90ae7
-```
-
-## Validaciones
-
-### CreateAppointmentCommand
-
-- `patientId`: Required, debe ser un GUID válido
-- `patientName`: Required, máximo 200 caracteres
-- `patientEmail`: Required, debe ser un email válido
-- `doctorId`: Required, debe ser un GUID válido
-- `appointmentDate`: Required, debe ser una fecha futura
-- `notes`: Optional, sin límite de caracteres
-
-**Error de validación (400 Bad Request):**
-```json
-{
-  "errors": {
-    "PatientEmail": ["Invalid email format"],
-    "AppointmentDate": ["Appointment date must be in the future"]
-  }
-}
+# 2. Consultar un turno propio
+curl -H "Authorization: Bearer $TOKEN" http://localhost:5002/api/v1/appointments/<id-del-turno>
 ```

@@ -1,285 +1,166 @@
-# 🏛️ Hub de Servicios Ciudadanos
+# Hub de Servicios Ciudadanos
 
-Sistema empresarial para centralización de servicios municipales/provinciales, desarrollado con arquitectura de microservicios y tecnologías modernas.
+Plataforma web para centralizar servicios municipales/provinciales, inspirada en plataformas como Ciudadano Digital de Córdoba (Argentina). Se construye con microservicios en .NET 8 y un frontend en React.
 
-![.NET](https://img.shields.io/badge/.NET-8.0-512BD4?style=flat-square&logo=dotnet)
-![React](https://img.shields.io/badge/React-18+-61DAFB?style=flat-square&logo=react)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-3178C6?style=flat-square&logo=typescript)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15+-336791?style=flat-square&logo=postgresql)
-![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=flat-square&logo=docker)
+> **Estado: en desarrollo temprano.** Hoy existen el servicio de identidad, el de turnos médicos y el de notificaciones, el gateway y un frontend básico. Los demás módulos son solo planes. Ver [Estado de implementación](SUMMARY.md) para el detalle y las limitaciones conocidas.
 
-## 📋 Descripción
+## Funcionalidades
 
-El Hub de Servicios Ciudadanos es una plataforma web que centraliza múltiples servicios gubernamentales para facilitar la gestión de trámites y consultas de los ciudadanos. Inspirado en plataformas como Ciudadano Digital de Córdoba, Argentina.
+**Implementadas (con limitaciones, ver [SUMMARY.md](SUMMARY.md)):**
 
-### Características principales
+- Registro e inicio de sesión de usuarios con JWT (Identity).
+- Turnos médicos: crear, consultar, listar por paciente, confirmar y cancelar; el acceso se limita al paciente titular y a administradores (Medical Appointments).
+- Notificaciones por usuario: listar, contar no leídas, marcar como leídas (Notifications). El envío por canales externos (email, SMS, push) es un stub.
+- API Gateway con YARP: enrutamiento, rate limiting y CORS.
+- Frontend: inicio de sesión, registro, panel y página de turnos. Esta última llama a rutas que la API aún no expone (ver [SUMMARY.md](SUMMARY.md)).
 
-- 🔐 **Autenticación segura** con JWT y soporte para 2FA
-- 🏥 **Gestión de turnos médicos** en centros de salud
-- 📋 **Consulta de impuestos** y gestión de pagos
-- 📜 **Repositorio legislativo** de ordenanzas y decretos
-- 👥 **Portal de RRHH** para empleados municipales
-- 📁 **Gestión documental** con firma digital
-- 🔔 **Sistema de notificaciones** multicanal
+**Planificadas (no existe código):** Legislative, Human Resources, Tax Management, Document Management y Citizen Portal. Recuperación de contraseña, refresco de tokens, verificación de 2FA y reprogramación de turnos tampoco están disponibles por API.
 
-## 🏗️ Arquitectura
+## Stack tecnológico
 
-### Arquitectura de Microservicios
+| Capa | Tecnologías |
+|---|---|
+| Backend | .NET 8, ASP.NET Core Web API, Entity Framework Core 8 (Npgsql), MediatR, FluentValidation, Serilog, BCrypt.Net, YARP, AspNetCoreRateLimit |
+| Frontend | React 19, TypeScript, Vite (`rolldown-vite`), Tailwind CSS 4, Zustand, TanStack Query, React Router 7, Axios, React Hook Form + Zod |
+| Infraestructura | PostgreSQL, Redis, Docker Compose, Nginx (frontend) |
 
-```
-                    ┌─────────────────┐
-                    │   API Gateway   │
-                    │     (YARP)      │
-                    └────────┬────────┘
-                             │
-     ┌───────────────────────┼───────────────────────┐
-     │           │           │           │           │
-┌────▼────┐ ┌────▼────┐ ┌────▼────┐ ┌────▼────┐ ┌────▼────┐
-│Identity │ │Medical  │ │Legisla- │ │  Tax    │ │Notifi-  │
-│ Service │ │Appoint- │ │  tive   │ │Manage-  │ │cations  │
-│         │ │ments    │ │ Service │ │ment     │ │Service  │
-└────┬────┘ └────┬────┘ └────┬────┘ └────┬────┘ └────┬────┘
-     │           │           │           │           │
-     └───────────┴───────────┼───────────┴───────────┘
-                             │
-              ┌──────────────┼──────────────┐
-              │              │              │
-         ┌────▼────┐    ┌────▼────┐    ┌────▼────┐
-         │PostgreSQL│    │  Redis  │    │RabbitMQ │
-         │  (DBs)  │    │ (Cache) │    │ (Events)│
-         └─────────┘    └─────────┘    └─────────┘
-```
+RabbitMQ está declarado en `docker-compose.yml`, pero **ningún servicio lo usa**: la abstracción de eventos existente apunta a Redis y tampoco está conectada todavía (ver [SUMMARY.md](SUMMARY.md)).
 
-### Clean Architecture en cada Microservicio
+## Arquitectura
+
+Cada microservicio sigue Clean Architecture (`API → Application → Domain`, con `Infrastructure` implementando las interfaces) y CQRS con MediatR. Cada servicio tiene su propia base de datos PostgreSQL.
 
 ```
-┌──────────────────────────────────────────┐
-│              Presentation                │
-│           (API Controllers)              │
-├──────────────────────────────────────────┤
-│              Application                 │
-│     (Commands, Queries, DTOs)            │
-├──────────────────────────────────────────┤
-│                Domain                    │
-│   (Entities, Value Objects, Events)      │
-├──────────────────────────────────────────┤
-│             Infrastructure               │
-│   (Repositories, External Services)      │
-└──────────────────────────────────────────┘
+Frontend (React) ──► API Gateway (YARP) ──► Identity API
+                                       ├──► Medical Appointments API
+                                       └──► Notifications API
+                         PostgreSQL (una base por servicio) · Redis (caché)
 ```
 
-## 🛠️ Stack Tecnológico
+La validación de JWT, la política de CORS y la identidad del usuario actual están centralizadas en `src/BuildingBlocks/Security`. Más detalle en [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-### Backend
-- **.NET 8.0** - Framework principal
-- **ASP.NET Core Web API** - APIs REST
-- **Entity Framework Core 8.0** - ORM
-- **MediatR** - CQRS y Mediator pattern
-- **FluentValidation** - Validaciones
-- **Serilog** - Logging estructurado
-- **YARP** - Reverse proxy / API Gateway
+## Requisitos previos
 
-### Frontend
-- **React 18+** con TypeScript
-- **Vite** - Build tool
-- **Zustand** - Estado global
-- **TanStack Query** - Server state
-- **React Router v6** - Navegación
-- **Tailwind CSS** - Estilos
-- **React Hook Form + Zod** - Formularios
+- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
+- [Node.js 20+](https://nodejs.org/) (el Dockerfile y CI usan Node 20)
+- [Docker](https://www.docker.com/) con Docker Compose v2
 
-### Base de Datos e Infraestructura
-- **PostgreSQL 15+** - Base de datos principal
-- **Redis** - Caché distribuido
-- **RabbitMQ** - Message broker
-- **Docker & Docker Compose** - Contenedorización
+## Configuración
 
-## 🚀 Inicio Rápido
+Los secretos **no** están en el repositorio. Se leen de variables de entorno.
 
-### Prerrequisitos
+1. Copiar la plantilla y completar cada valor (el archivo `.env` está en `.gitignore`):
 
-- [.NET 8.0 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
-- [Node.js 18+](https://nodejs.org/)
-- [Docker Desktop](https://www.docker.com/products/docker-desktop)
-- [Git](https://git-scm.com/)
+   ```bash
+   cp .env.example .env
+   ```
 
-### Instalación
+   Generar valores fuertes, por ejemplo con `openssl rand -base64 48`.
 
-1. **Clonar el repositorio**
-```bash
-git clone https://github.com/your-org/city-services-hub.git
-cd city-services-hub
-```
+2. Variables de entorno:
 
-2. **Iniciar servicios con Docker Compose**
-```bash
-docker-compose up -d
-```
+   | Variable | Obligatoria | Descripción |
+   |---|---|---|
+   | `POSTGRES_ADMIN_USER` | No (por defecto `postgres`) | Cuenta administradora de PostgreSQL, usada solo para inicializar las bases. |
+   | `POSTGRES_ADMIN_PASSWORD` | Sí | Contraseña de esa cuenta. |
+   | `IDENTITY_DB_PASSWORD` | Sí | Contraseña del rol `identity_user` (dueño de `identity_db`). |
+   | `APPOINTMENTS_DB_PASSWORD` | Sí | Contraseña del rol `appointments_user` (dueño de `medical_appointments_db`). |
+   | `NOTIFICATIONS_DB_PASSWORD` | Sí | Contraseña del rol `notifications_user` (dueño de `notifications_db`). |
+   | `JWT_SECRET_KEY` | Sí | Clave HMAC (HS256) compartida por todos los servicios, de al menos 32 bytes. |
+   | `RABBITMQ_USER`, `RABBITMQ_PASSWORD` | Sí (mientras el contenedor siga en el compose) | Credenciales de RabbitMQ. |
 
-3. **Instalar dependencias del frontend**
-```bash
-cd src/WebApp
-npm install
-```
+   Los servicios se configuran con estas claves de .NET (en Docker Compose las rellena el compose a partir del `.env`):
 
-4. **Ejecutar el frontend en modo desarrollo**
-```bash
-npm run dev
-```
+   | Clave | Servicios | Descripción |
+   |---|---|---|
+   | `JwtSettings__SecretKey` | Todos | Clave de firma. Sin ella el servicio **no arranca**. |
+   | `JwtSettings__Issuer`, `JwtSettings__Audience` | Todos | Ya definidos en `appsettings.json` (`CityServicesHub`). |
+   | `ConnectionStrings__IdentityDb` | Identity | Cadena de conexión a PostgreSQL. |
+   | `ConnectionStrings__MedicalAppointmentsDb` | Medical Appointments | Cadena de conexión a PostgreSQL. |
+   | `ConnectionStrings__NotificationsDb` | Notifications | Cadena de conexión a PostgreSQL. |
+   | `ConnectionStrings__Redis` | Identity, Medical Appointments | Host de Redis (por defecto `localhost:6379`). |
+   | `Cors__AllowedOrigins__0`, `__1`, … | Identity, Medical Appointments | Orígenes permitidos (por defecto `http://localhost:3000` y `http://localhost:5173`). Sin orígenes no se permite ninguno; `*` se rechaza. |
+   | `SendGrid__ApiKey` | Notifications | El sender de email lanza un error si está vacía; el envío real sigue siendo un stub. |
 
-5. **Acceder a la aplicación**
-- Frontend: http://localhost:5173
-- API Gateway: http://localhost:5000
-- Swagger Identity API: http://localhost:5001/swagger
-- Swagger Appointments API: http://localhost:5002/swagger
-- RabbitMQ Management: http://localhost:15672
+   El frontend usa `VITE_API_URL` (por defecto `http://localhost:5000/api/v1`, el gateway).
 
-### Desarrollo Local (sin Docker)
+## Ejecución
 
-1. **Iniciar PostgreSQL y Redis**
-```bash
-docker-compose up -d postgres redis
-```
-
-2. **Restaurar y ejecutar backend**
-```bash
-dotnet restore
-dotnet run --project src/Services/Identity/Identity.API
-```
-
-3. **En otra terminal, ejecutar el frontend**
-```bash
-cd src/WebApp
-npm run dev
-```
-
-## 📁 Estructura del Proyecto
-
-```
-/
-├── src/
-│   ├── ApiGateway/                    # YARP Gateway
-│   ├── BuildingBlocks/                # Código compartido
-│   │   ├── Common/                    # Abstracciones comunes
-│   │   ├── EventBus/                  # Bus de eventos
-│   │   └── Logging/                   # Serilog setup
-│   ├── Services/
-│   │   ├── Identity/                  # Autenticación
-│   │   │   ├── Identity.API/
-│   │   │   ├── Identity.Application/
-│   │   │   ├── Identity.Domain/
-│   │   │   ├── Identity.Infrastructure/
-│   │   │   └── Identity.Tests/
-│   │   ├── MedicalAppointments/       # Turnos médicos
-│   │   ├── Legislative/              # Documentación legislativa
-│   │   ├── HumanResources/           # RRHH
-│   │   ├── TaxManagement/            # Impuestos
-│   │   ├── Notifications/            # Notificaciones
-│   │   ├── DocumentManagement/       # Gestión documental
-│   │   └── CitizenPortal/            # Portal ciudadano
-│   └── WebApp/                        # React Frontend
-│       ├── src/
-│       │   ├── components/
-│       │   ├── pages/
-│       │   ├── services/
-│       │   ├── store/
-│       │   ├── hooks/
-│       │   └── types/
-│       └── package.json
-├── scripts/                           # Scripts de utilidad
-├── docs/                              # Documentación
-├── docker-compose.yml
-├── CityServicesHub.sln
-└── README.md
-```
-
-## 🔑 Variables de Entorno
-
-### Backend (.NET)
-```bash
-ConnectionStrings__IdentityDb=Host=localhost;Port=5432;Database=identity_db;Username=postgres;Password=postgres
-ConnectionStrings__Redis=localhost:6379
-JwtSettings__SecretKey=your-secret-key-at-least-32-characters
-JwtSettings__Issuer=CityServicesHub
-JwtSettings__Audience=CityServicesHub
-```
-
-### Frontend
-```bash
-VITE_API_URL=http://localhost:5000/api/v1
-```
-
-## 📖 API Documentation
-
-La documentación de las APIs está disponible mediante Swagger/OpenAPI:
-
-- **Identity API**: `http://localhost:5001/swagger`
-- **Medical Appointments API**: `http://localhost:5002/swagger`
-
-### Endpoints Principales
-
-#### Autenticación
-```
-POST /api/v1/auth/register    - Registro de usuario
-POST /api/v1/auth/login       - Inicio de sesión
-GET  /api/v1/auth/me          - Perfil del usuario actual
-```
-
-#### Turnos Médicos
-```
-GET  /api/v1/appointments              - Listar turnos
-POST /api/v1/appointments              - Crear turno
-GET  /api/v1/appointments/{id}         - Obtener turno
-POST /api/v1/appointments/{id}/confirm - Confirmar turno
-POST /api/v1/appointments/{id}/cancel  - Cancelar turno
-```
-
-## 🧪 Testing
+### Con Docker Compose
 
 ```bash
-# Ejecutar todos los tests
-dotnet test
-
-# Ejecutar tests con cobertura
-dotnet test --collect:"XPlat Code Coverage"
-
-# Tests del frontend
-cd src/WebApp
-npm test
+docker compose up -d --build
 ```
 
-## 🚢 Deployment
+| Componente | URL / puerto |
+|---|---|
+| Frontend (Nginx) | http://localhost:3000 |
+| API Gateway | http://localhost:5000 |
+| Identity API | http://localhost:5001 (Swagger en `/swagger`) |
+| Medical Appointments API | http://localhost:5002 (Swagger en `/swagger`) |
+| PostgreSQL / Redis | 5432 / 6379 |
+| RabbitMQ (sin uso) | 5672 / 15672 |
 
-### Docker Compose (Producción)
+> **Limitaciones actuales de este modo (sin verificar en esta versión):** el compose no incluye el servicio Notifications; el gateway tiene los destinos en `localhost` (válidos solo fuera de Docker), por lo que dentro de Docker no llega a los servicios, y el repositorio no contiene migraciones de EF Core, así que el esquema de las bases no se crea. Ver [SUMMARY.md](SUMMARY.md).
+
+### Desarrollo local (sin Docker para los servicios)
+
+1. Levantar la infraestructura (requiere el `.env` del paso anterior):
+
+   ```bash
+   docker compose up -d postgres redis
+   ```
+
+2. Exportar la configuración del servicio y ejecutarlo. Ejemplo para Identity (los puertos 5001/5002/5003 son los que espera la configuración del gateway):
+
+   ```bash
+   export JwtSettings__SecretKey="<el mismo valor de JWT_SECRET_KEY>"
+   export ConnectionStrings__IdentityDb="Host=localhost;Port=5432;Database=identity_db;Username=identity_user;Password=<IDENTITY_DB_PASSWORD>"
+   ASPNETCORE_URLS=http://localhost:5001 dotnet run --project src/Services/Identity/Identity.API
+   ```
+
+   Medical Appointments se ejecuta igual con `ConnectionStrings__MedicalAppointmentsDb` y puerto 5002; Notifications, con `ConnectionStrings__NotificationsDb` y puerto 5003. El gateway (`src/ApiGateway`) usa el puerto 5000 y también requiere `JwtSettings__SecretKey`.
+
+3. Frontend:
+
+   ```bash
+   cd src/WebApp
+   npm ci
+   npm run dev      # http://localhost:5173
+   ```
+
+## Pruebas
+
 ```bash
-docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+dotnet test CityServicesHub.sln          # pruebas del backend (xUnit)
+cd src/WebApp && npm run lint && npm run build   # el frontend no tiene pruebas automatizadas
 ```
 
-### Kubernetes
-Ver documentación en `/docs/kubernetes/`
+CI (`.github/workflows/ci.yml`) compila y prueba el backend, y hace lint y build del frontend en push y pull request a `main` y `development`.
 
-## 🤝 Contribución
+## Estructura del proyecto
 
-1. Fork el repositorio
-2. Crear feature branch (`git checkout -b feature/nueva-funcionalidad`)
-3. Commit cambios (`git commit -m 'Agregar nueva funcionalidad'`)
-4. Push al branch (`git push origin feature/nueva-funcionalidad`)
-5. Abrir Pull Request
+```
+src/
+├── ApiGateway/              # Gateway YARP (el subdirectorio ApiGateway/ApiGateway es una copia Ocelot sin uso)
+├── BuildingBlocks/          # Código compartido: Common, EventBus, Logging, Security (+ Security.Tests)
+├── Services/
+│   ├── Identity/            # Registro, login, JWT
+│   ├── MedicalAppointments/ # Turnos médicos y centros de salud
+│   └── Notifications/       # Notificaciones de usuario
+├── Shared/                  # Librerías duplicadas de BuildingBlocks, fuera de la solución
+└── WebApp/                  # Frontend React
+docs/                        # Arquitectura, API y guía de desarrollo
+scripts/                     # Inicialización de PostgreSQL
+```
 
-## 📄 Licencia
+## Documentación
 
-Este proyecto está bajo la Licencia MIT - ver el archivo [LICENSE](LICENSE) para detalles.
+- [Estado de implementación y limitaciones](SUMMARY.md)
+- [Arquitectura](docs/ARCHITECTURE.md)
+- [API](docs/API.md)
+- [Guía de desarrollo](docs/DEVELOPMENT.md)
 
-## 👥 Equipo
+## Licencia
 
-- **City Services Hub Team** - Desarrollo y mantenimiento
-
-## 📞 Soporte
-
-- **Email**: soporte@hubciudadano.gob.ar
-- **Documentación**: [Wiki del proyecto](docs/)
-- **Issues**: [GitHub Issues](issues/)
-
----
-
-Desarrollado con ❤️ para los ciudadanos
+No hay un archivo `LICENSE` en el repositorio; la licencia está pendiente de definir.

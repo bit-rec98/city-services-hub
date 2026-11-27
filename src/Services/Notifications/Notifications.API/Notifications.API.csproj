@@ -18,6 +18,7 @@
     <ProjectReference Include="..\Notifications.Application\Notifications.Application.csproj" />
     <ProjectReference Include="..\Notifications.Infrastructure\Notifications.Infrastructure.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\Logging\Logging.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\Security\Security.csproj" />
   </ItemGroup>
 
 </Project>

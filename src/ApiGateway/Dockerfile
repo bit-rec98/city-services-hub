@@ -5,6 +5,7 @@ WORKDIR /src
 # Copiar archivos de proyecto para restaurar dependencias
 COPY ["src/ApiGateway/ApiGateway.csproj", "src/ApiGateway/"]
 COPY ["src/BuildingBlocks/Logging/Logging.csproj", "src/BuildingBlocks/Logging/"]
+COPY ["src/BuildingBlocks/Security/Security.csproj", "src/BuildingBlocks/Security/"]
 COPY ["src/BuildingBlocks/Common/Common.csproj", "src/BuildingBlocks/Common/"]
 
 # Restaurar dependencias

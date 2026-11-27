@@ -9,6 +9,7 @@ COPY ["src/Services/Identity/Identity.Domain/Identity.Domain.csproj", "src/Servi
 COPY ["src/Services/Identity/Identity.Infrastructure/Identity.Infrastructure.csproj", "src/Services/Identity/Identity.Infrastructure/"]
 COPY ["src/BuildingBlocks/Common/Common.csproj", "src/BuildingBlocks/Common/"]
 COPY ["src/BuildingBlocks/Logging/Logging.csproj", "src/BuildingBlocks/Logging/"]
+COPY ["src/BuildingBlocks/Security/Security.csproj", "src/BuildingBlocks/Security/"]
 
 # Restaurar dependencias
 RUN dotnet restore "src/Services/Identity/Identity.API/Identity.API.csproj"
