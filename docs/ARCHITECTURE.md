@@ -81,9 +81,16 @@ Dependencias: `API → Application → Domain` e `Infrastructure → Application
 
 `docker-compose.yml` define PostgreSQL, Redis, RabbitMQ, el gateway, Identity, Medical Appointments y el frontend (Nginx). RabbitMQ no tiene uso en el código. Notifications no está incluido. No hay entornos de staging ni producción definidos. CI en `.github/workflows/ci.yml`: compilación y pruebas del backend, lint y build del frontend, y build de imágenes Docker en push a `main`.
 
-## Decisiones pendientes
+## Decisiones
 
-Estas decisiones no están tomadas y no hay ADR que las registre: bus de eventos (Redis o RabbitMQ), esquema de firma de JWT (clave simétrica compartida o RS256 con clave pública), y estrategia de refresco de tokens.
+Las decisiones de arquitectura se registran como ADR en [`docs/architecture/decisions/`](architecture/decisions/):
+
+| ADR | Tema | Estado |
+|---|---|---|
+| [ADR-001](architecture/decisions/ADR-001-jwt-signing-and-validation.md) | Firma y validación de JWT (HS256, clave compartida, helper común) | Aceptada |
+| [ADR-002](architecture/decisions/ADR-002-event-bus.md) | Tecnología del bus de eventos (Redis Pub/Sub, RabbitMQ, Redis Streams o diferirlo) | **Propuesta, sin decidir** |
+
+Sigue sin decisión ni ADR la estrategia de refresco y revocación de tokens.
 
 ## Planificado (no implementado)
 

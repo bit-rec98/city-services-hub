@@ -161,6 +161,8 @@ scripts/                     # Inicialización de PostgreSQL
 - [Arquitectura](docs/ARCHITECTURE.md)
 - [API](docs/API.md)
 - [Guía de desarrollo](docs/DEVELOPMENT.md)
+- [Decisiones de arquitectura (ADR)](docs/architecture/decisions/)
+- [AGENTS.md](AGENTS.md): guía para agentes de IA y contribuyentes sobre comandos, convenciones y errores ya encontrados
 
 ## Licencia
 
