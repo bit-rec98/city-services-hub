@@ -97,7 +97,11 @@ public record AppointmentDto
 /// </summary>
 public record CreateAppointmentDto
 {
-    public Guid PatientId { get; init; }
+    /// <summary>
+    /// Opcional. Solo lo respetan los administradores; para el resto el paciente es el usuario
+    /// autenticado.
+    /// </summary>
+    public Guid? PatientId { get; init; }
     public string PatientName { get; init; } = null!;
     public string PatientDocumentNumber { get; init; } = null!;
     public string? PatientPhoneNumber { get; init; }

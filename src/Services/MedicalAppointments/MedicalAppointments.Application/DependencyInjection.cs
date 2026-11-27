@@ -1,4 +1,5 @@
 using FluentValidation;
+using MedicalAppointments.Application.Behaviors;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using System.Reflection;
@@ -20,6 +21,7 @@ public static class DependencyInjection
 
         // FluentValidation
         services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly());
+        services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
 
         return services;
     }

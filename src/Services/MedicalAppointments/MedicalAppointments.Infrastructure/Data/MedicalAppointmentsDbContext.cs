@@ -93,6 +93,10 @@ public class MedicalAppointmentsDbContext : DbContext
             entity.Property(e => e.Reason).HasMaxLength(1000);
             entity.Property(e => e.Notes).HasMaxLength(2000);
             entity.Property(e => e.CancellationReason).HasMaxLength(500);
+
+            // Fecha de calendario del turno (la hora está en StartTime): se guarda como `date` para que
+            // no dependa del Kind/zona horaria de la fecha recibida y las comparaciones por día sean exactas.
+            entity.Property(e => e.ScheduledDate).HasColumnType("date");
             
             entity.HasIndex(e => e.PatientId);
             entity.HasIndex(e => e.DoctorId);

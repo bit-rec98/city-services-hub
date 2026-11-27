@@ -69,6 +69,10 @@ services:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:80
       - JwtSettings__SecretKey=${JWT_SECRET_KEY:?Set JWT_SECRET_KEY in .env}
+      # appsettings.json apunta a localhost (desarrollo sin Docker); dentro de la red del compose
+      # los servicios se alcanzan por su nombre.
+      - ReverseProxy__Clusters__identity-cluster__Destinations__identity__Address=http://identity-api:80
+      - ReverseProxy__Clusters__appointments-cluster__Destinations__appointments__Address=http://appointments-api:80
     ports:
       - "5000:80"
     depends_on:
@@ -87,6 +91,7 @@ services:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:80
       - ConnectionStrings__IdentityDb=Host=postgres;Port=5432;Database=identity_db;Username=identity_user;Password=${IDENTITY_DB_PASSWORD:?Set IDENTITY_DB_PASSWORD in .env}
+      - Database__MigrateOnStartup=true
       - JwtSettings__SecretKey=${JWT_SECRET_KEY:?Set JWT_SECRET_KEY in .env}
       - ConnectionStrings__Redis=redis:6379
     ports:
@@ -109,6 +114,7 @@ services:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:80
       - ConnectionStrings__MedicalAppointmentsDb=Host=postgres;Port=5432;Database=medical_appointments_db;Username=appointments_user;Password=${APPOINTMENTS_DB_PASSWORD:?Set APPOINTMENTS_DB_PASSWORD in .env}
+      - Database__MigrateOnStartup=true
       - JwtSettings__SecretKey=${JWT_SECRET_KEY:?Set JWT_SECRET_KEY in .env}
       - ConnectionStrings__Redis=redis:6379
     ports:

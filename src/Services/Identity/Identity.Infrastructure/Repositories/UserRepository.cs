@@ -45,7 +45,14 @@ public class UserRepository : IUserRepository
 
     public async Task UpdateAsync(User entity, CancellationToken cancellationToken = default)
     {
-        _context.Users.Update(entity);
+        // Si el usuario ya está rastreado (se cargó en esta petición), SaveChanges detecta sus
+        // cambios y los hijos nuevos. Update() marcaría como modificados los RefreshToken recién
+        // creados y fallaría con DbUpdateConcurrencyException.
+        if (_context.Entry(entity).State == EntityState.Detached)
+        {
+            _context.Users.Update(entity);
+        }
+
         await _context.SaveChangesAsync(cancellationToken);
     }
 

@@ -7,13 +7,16 @@ Resumen verificable del estado del proyecto. Cada afirmación se contrastó con 
 | Comprobación | Resultado |
 |---|---|
 | `dotnet build CityServicesHub.sln` | Correcto (con advertencias de dependencias vulnerables, ver más abajo) |
-| `dotnet test CityServicesHub.sln` | Correcto: Identity, Medical Appointments, Notifications y Security |
+| `dotnet test CityServicesHub.sln` | Correcto: pruebas unitarias (Identity, Medical Appointments, Notifications y Security) y de integración (Identity y Medical Appointments, con PostgreSQL en Docker) |
 | `npm run lint` y `npm run build` en `src/WebApp` | Correcto |
 | `docker compose config` con un `.env` completo / sin `.env` | Valida / falla indicando la variable faltante |
 | Script `scripts/init-databases.sh` en un contenedor `postgres:17-alpine` | Crea un rol y una base por servicio; cada rol solo puede conectarse a su base |
 | Arranque de cada servicio sin `JwtSettings__SecretKey` | Falla al iniciar |
+| Appointments API sobre PostgreSQL real (migraciones al arrancar, rol de mínimo privilegio, JWT firmados con la clave de prueba) | 21 pruebas de integración automatizadas: 401 sin token o con firma alterada, validación 400, paciente tomado del token, 404/403 sobre turnos ajenos, acceso de administrador, 409 por horario ocupado, confirmar y cancelar, `patient/me`, listado público de centros |
+| Identity API sobre PostgreSQL real (Redis reemplazado por caché en memoria) | 17 pruebas de integración automatizadas: registro (todos los tipos de documento, duplicados 409, contraseña débil), login con tokens y refresh token persistido, respuesta idéntica para contraseña errónea y email inexistente, bloqueo tras 5 intentos, `GET /auth/me`, restricción de `GET /auth/{id}` a administradores, 2FA (se pide el código y nunca se acepta). Con el bug del refresh token reintroducido, 3 de ellas fallan |
+| Migraciones | Las tres se aplican en una base vacía; el gateway usa el destino sobrescrito por variable de entorno |
 
-**No verificado:** `docker compose up` completo, servicios en ejecución contra PostgreSQL/Redis reales, el flujo de extremo a extremo entre frontend, gateway y servicios, y la autorización a nivel HTTP (solo está cubierta a nivel de handlers).
+**No verificado:** `docker compose up` completo (no se construyeron las imágenes), el comportamiento con un Redis real (el registro y los códigos de verificación), Notifications en ejecución, y el flujo de extremo a extremo entre frontend, gateway y servicios. Las pruebas de integración se ejecutaron localmente con `postgres:17-alpine`; el compose y la configuración por defecto usan `postgres:15-alpine`, y su ejecución en CI aún no se ha observado.
 
 ## Estado por componente
 
@@ -30,14 +33,11 @@ Resumen verificable del estado del proyecto. Cada afirmación se contrastó con 
 
 **Bloqueantes para ejecutar el sistema completo**
 
-- No hay migraciones de EF Core en el repositorio ni se llama a `Migrate()`/`EnsureCreated()`: el esquema de las bases no se crea.
-- Dentro de Docker, el gateway apunta a `localhost:5001/5002/5003`, que no son los servicios. Debe usar los nombres de servicio del compose.
-- El compose no incluye Notifications, y el gateway enruta `/api/v1/notifications` a `localhost:5003`.
+- El compose no incluye Notifications (no tiene Dockerfile), y el gateway enruta `/api/v1/notifications` a `localhost:5003`, que dentro de Docker no es ese servicio.
 
 **Seguridad**
 
-- Medical Appointments no valida sus entradas: los validadores de FluentValidation de esa API están excluidos de la compilación y no hay un comportamiento de validación registrado.
-- `LoginCommandHandler` solo comprueba que se envíe un `TwoFactorCode` cuando el usuario tiene 2FA habilitado; **no verifica el código**. No existe un flujo para habilitar 2FA.
+- 2FA no está implementado: no hay verificación de códigos ni flujo para habilitarlo. Por seguridad, `LoginCommandHandler` rechaza siempre el login de un usuario con 2FA habilitado (no acepta ningún código).
 - El frontend guarda `accessToken` y `refreshToken` en `localStorage` (expuestos ante XSS).
 - El rate limiting del gateway usa el encabezado `X-Real-IP` enviado por el cliente.
 - Dependencias con avisos de seguridad: AutoMapper 12.0.1 (3 avisos de severidad alta) y 6 vulnerabilidades en `npm audit`.
@@ -47,7 +47,7 @@ Resumen verificable del estado del proyecto. Cada afirmación se contrastó con 
 **Frontend y API desalineados**
 
 - `/auth/refresh`, `/auth/forgot-password` y `/auth/reset-password` no existen en la API.
-- La página de turnos llama a `/appointments/patient/me`, `/doctors` y `/appointments/available-slots`, que no existen.
+- La página de turnos llama a `/doctors` y `/appointments/available-slots`, que no existen.
 
 **Eventos**
 
@@ -63,7 +63,7 @@ Resumen verificable del estado del proyecto. Cada afirmación se contrastó con 
 **Otras**
 
 - `TreatWarningsAsErrors` está desactivado; el lint y la comprobación de formato en CI no bloquean el pipeline (`continue-on-error`).
-- No hay pruebas automatizadas del frontend ni pruebas de API/integración del backend.
+- No hay pruebas automatizadas del frontend, ni de integración para Notifications ni para el gateway.
 - `AuthResponseDto.ExpiresAt` está fijado a una hora, aunque la expiración del token se configura con `JwtSettings:ExpirationMinutes`.
 
 ## Documentación relacionada

@@ -34,7 +34,7 @@ public class AppointmentsController : ControllerBase
     public async Task<IActionResult> CreateAppointment([FromBody] CreateAppointmentDto request)
     {
         var command = new CreateAppointmentCommand(
-            request.PatientId,
+            request.PatientId ?? Guid.Empty,
             request.PatientName,
             request.PatientDocumentNumber,
             request.PatientPhoneNumber,
@@ -77,6 +77,23 @@ public class AppointmentsController : ControllerBase
 
         if (result.IsFailure)
             return NotFound(new { message = result.Error.Message });
+
+        return Ok(result.Value);
+    }
+
+    /// <summary>
+    /// Obtiene los turnos del usuario autenticado.
+    /// </summary>
+    [HttpGet("patient/me")]
+    [Authorize]
+    [ProducesResponseType(typeof(IEnumerable<AppointmentDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetMyAppointments([FromQuery] bool upcomingOnly = false)
+    {
+        var result = await _mediator.Send(new GetPatientAppointmentsQuery(null, upcomingOnly));
+
+        if (result.IsFailure)
+            return Forbid();
 
         return Ok(result.Value);
     }

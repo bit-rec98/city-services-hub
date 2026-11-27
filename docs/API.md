@@ -14,7 +14,7 @@ Esta guía describe las rutas implementadas hoy. La fuente de verdad es el códi
 | Swagger (solo `Development`) | `/swagger` en cada servicio |
 | Health check | `GET /health` en cada servicio y en el gateway |
 
-> **Nota sobre el gateway:** sus rutas están definidas, pero sus destinos apuntan a `localhost`, así que solo funcionan cuando los servicios corren fuera de Docker en los puertos 5001 (Identity), 5002 (Medical Appointments) y 5003 (Notifications). Ver [SUMMARY.md](../SUMMARY.md).
+> **Nota sobre el gateway:** en `appsettings.json` sus destinos son `localhost:5001` (Identity), `localhost:5002` (Medical Appointments) y `localhost:5003` (Notifications), válidos con los servicios fuera de Docker. `docker-compose.yml` los sobrescribe con `identity-api` y `appointments-api`; Notifications no está en el compose.
 
 ### Rutas del gateway
 
@@ -77,8 +77,8 @@ Registra un usuario.
 ```
 
 - `200`: `{ "user": UserDto, "accessToken": "...", "refreshToken": "...", "expiresAt": "..." }`.
-- `200` con `{ "requiresTwoFactor": true, "message": "..." }` si el usuario tiene 2FA habilitado y no envió código. **El código aún no se verifica** (ver SUMMARY.md).
-- `401` credenciales inválidas, cuenta bloqueada o inactiva. `400` datos inválidos.
+- `200` con `{ "requiresTwoFactor": true, "message": "..." }` si el usuario tiene 2FA habilitado y no envió código.
+- `401` credenciales inválidas, cuenta bloqueada o inactiva, o un usuario con 2FA habilitado que envía un código: **la verificación de códigos aún no está implementada, por lo que se rechaza siempre** (no se emiten tokens). `400` datos inválidos.
 
 ### `GET /api/v1/auth/me` (requiere token)
 
@@ -119,15 +119,19 @@ Todos los endpoints de turnos requieren token. La identidad del paciente **se to
 - `specialty`: entero del enum `MedicalSpecialty` (`0` GeneralMedicine, `1` Pediatrics, `2` Cardiology, …; ver `MedicalEnums.cs`).
 - `attentionType`: `0` InPerson, `1` Telemedicine, `2` HomeVisit. `durationMinutes` omitido usa la duración por defecto del médico.
 - Respuestas: `201` con el turno (`AppointmentDto`), `400` médico o centro inexistente u otro error de negocio, `409` el médico ya tiene un turno en ese horario.
-- **Sin validación de entrada todavía:** los validadores de este servicio no están activos (ver SUMMARY.md).
+- Los datos se validan antes del handler (nombre y documento obligatorios con los largos máximos de la base, email con formato válido, médico y centro no vacíos, enums definidos, fecha no pasada, duración entre 1 y 480 minutos, motivo de hasta 1000 caracteres). Un fallo responde `400` con `{ "message": "..." }`.
 
 ### `GET /api/v1/appointments/{id}`
 
 `200` con el turno. `404` si no existe **o si pertenece a otro paciente** (no se revela su existencia).
 
+### `GET /api/v1/appointments/patient/me?upcomingOnly=false`
+
+Turnos del usuario autenticado. `200`.
+
 ### `GET /api/v1/appointments/patient/{patientId}?upcomingOnly=false`
 
-Turnos del paciente indicado. `200`; `403` si `patientId` no es el del usuario autenticado y este no es administrador. No existe el alias `patient/me`.
+Turnos del paciente indicado. `200`; `403` si `patientId` no es el del usuario autenticado y este no es administrador.
 
 ### `POST /api/v1/appointments/{id}/confirm`
 
@@ -135,7 +139,7 @@ Confirma un turno en estado `Scheduled`. `200` `{ "message": "..." }`; `400` si 
 
 ### `POST /api/v1/appointments/{id}/cancel`
 
-Cuerpo: `{ "reason": "Motivo de la cancelación" }`. `200` `{ "message": "..." }`; `400` si el turno no puede cancelarse; `404` si no existe o es ajeno.
+Cuerpo: `{ "reason": "Motivo de la cancelación" }` (obligatorio, hasta 500 caracteres). `200` `{ "message": "..." }`; `400` si el turno no puede cancelarse; `404` si no existe o es ajeno.
 
 `AppointmentDto`: `id`, `patientId`, `patientName`, `patientDocumentNumber`, `patientPhoneNumber`, `patientEmail`, `doctorId`, `doctorName`, `specialty`, `healthCenterId`, `healthCenterName`, `scheduledDate`, `startTime` (`HH:mm`), `endTime`, `durationMinutes`, `status`, `attentionType`, `reason`, `notes`, `cancellationReason`, `createdAt`, `confirmedAt`, `cancelledAt`, `completedAt`. `status` es uno de `Scheduled`, `Confirmed`, `InProgress`, `Completed`, `Cancelled`, `NoShow`, `Rescheduled`.
 

@@ -10,10 +10,11 @@ namespace MedicalAppointments.Application.Queries;
 public record GetAppointmentByIdQuery(Guid AppointmentId) : IQuery<AppointmentDto>;
 
 /// <summary>
-/// Query para obtener turnos de un paciente.
+/// Query para obtener turnos de un paciente. Con <c>PatientId</c> nulo se consultan los del
+/// usuario autenticado.
 /// </summary>
 public record GetPatientAppointmentsQuery(
-    Guid PatientId,
+    Guid? PatientId,
     bool UpcomingOnly = false
 ) : IQuery<IEnumerable<AppointmentDto>>;
 

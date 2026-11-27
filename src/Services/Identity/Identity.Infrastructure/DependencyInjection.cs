@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 using Identity.Application.Interfaces;
 using Identity.Domain.Interfaces;
 using Identity.Infrastructure.Data;
@@ -19,10 +20,20 @@ public static class DependencyInjection
         IConfiguration configuration)
     {
         // PostgreSQL con EF Core
-        services.AddDbContext<IdentityDbContext>(options =>
+        // Las colecciones y diccionarios se guardan como jsonb: Npgsql 8 exige habilitar
+        // explícitamente la serialización JSON dinámica en el data source.
+        services.AddSingleton(_ =>
+        {
+            var connectionString = configuration.GetConnectionString("IdentityDb")
+                ?? throw new InvalidOperationException("ConnectionStrings:IdentityDb no está configurado.");
+
+            return new NpgsqlDataSourceBuilder(connectionString).EnableDynamicJson().Build();
+        });
+
+        services.AddDbContext<IdentityDbContext>((serviceProvider, options) =>
         {
             options.UseNpgsql(
-                configuration.GetConnectionString("IdentityDb"),
+                serviceProvider.GetRequiredService<NpgsqlDataSource>(),
                 npgsqlOptions =>
                 {
                     npgsqlOptions.EnableRetryOnFailure(

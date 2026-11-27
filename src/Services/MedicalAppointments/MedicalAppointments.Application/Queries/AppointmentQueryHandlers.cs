@@ -87,12 +87,22 @@ public class GetPatientAppointmentsQueryHandler : IQueryHandler<GetPatientAppoin
         GetPatientAppointmentsQuery request, 
         CancellationToken cancellationToken)
     {
-        if (!AppointmentAccess.CanAccessPatient(request.PatientId, _currentUser))
+        Guid patientId;
+        if (request.PatientId.HasValue)
+        {
+            patientId = request.PatientId.Value;
+        }
+        else if (!AppointmentAccess.TryGetUserId(_currentUser, out patientId))
+        {
+            return Result.Failure<IEnumerable<AppointmentDto>>(AppointmentAccess.Unauthenticated);
+        }
+
+        if (!AppointmentAccess.CanAccessPatient(patientId, _currentUser))
             return Result.Failure<IEnumerable<AppointmentDto>>(AppointmentAccess.PatientForbidden);
 
         var appointments = request.UpcomingOnly
-            ? await _appointmentRepository.GetUpcomingByPatientAsync(request.PatientId, cancellationToken)
-            : await _appointmentRepository.GetByPatientAsync(request.PatientId, cancellationToken);
+            ? await _appointmentRepository.GetUpcomingByPatientAsync(patientId, cancellationToken)
+            : await _appointmentRepository.GetByPatientAsync(patientId, cancellationToken);
 
         var dtos = appointments.Select(a => new AppointmentDto
         {

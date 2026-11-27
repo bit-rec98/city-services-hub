@@ -25,7 +25,7 @@ Cada servicio usa su propia base de datos (`identity_db`, `medical_appointments_
 
 | Componente | Ubicación | Responsabilidad | Estado |
 |---|---|---|---|
-| API Gateway | `src/ApiGateway` | Enrutamiento (YARP), rate limiting por IP, CORS. Registra la validación de JWT, pero no exige autenticación en ninguna ruta: cada servicio valida el token | Implementado; destinos en `localhost` |
+| API Gateway | `src/ApiGateway` | Enrutamiento (YARP), rate limiting por IP, CORS. Registra la validación de JWT, pero no exige autenticación en ninguna ruta: cada servicio valida el token | Implementado; destinos en `localhost` salvo en Docker Compose, que usa los nombres de servicio |
 | Identity | `src/Services/Identity` | Registro, login, emisión de JWT, usuarios y roles | Parcial |
 | Medical Appointments | `src/Services/MedicalAppointments` | Turnos médicos y centros de salud | Parcial |
 | Notifications | `src/Services/Notifications` | Notificaciones por usuario y despacho por canal | Parcial; senders externos son stubs |
@@ -70,7 +70,7 @@ Dependencias: `API → Application → Domain` e `Infrastructure → Application
 
 ### Limitaciones de seguridad conocidas
 
-Medical Appointments no valida sus entradas, 2FA no se verifica, el frontend guarda tokens en `localStorage`, el rate limiting confía en `X-Real-IP` del cliente y hay dependencias con avisos de seguridad. Detalle y prioridad en [SUMMARY.md](../SUMMARY.md).
+2FA no está implementado (el login con 2FA habilitado se rechaza), el frontend guarda tokens en `localStorage`, el rate limiting confía en `X-Real-IP` del cliente y hay dependencias con avisos de seguridad. Detalle y prioridad en [SUMMARY.md](../SUMMARY.md).
 
 ## Comunicación
 
@@ -81,9 +81,16 @@ Medical Appointments no valida sus entradas, 2FA no se verifica, el frontend gua
 
 `docker-compose.yml` define PostgreSQL, Redis, RabbitMQ, el gateway, Identity, Medical Appointments y el frontend (Nginx). RabbitMQ no tiene uso en el código. Notifications no está incluido. No hay entornos de staging ni producción definidos. CI en `.github/workflows/ci.yml`: compilación y pruebas del backend, lint y build del frontend, y build de imágenes Docker en push a `main`.
 
-## Decisiones pendientes
+## Decisiones
 
-Estas decisiones no están tomadas y no hay ADR que las registre: bus de eventos (Redis o RabbitMQ), esquema de firma de JWT (clave simétrica compartida o RS256 con clave pública), y estrategia de refresco de tokens.
+Las decisiones de arquitectura se registran como ADR en [`docs/architecture/decisions/`](architecture/decisions/):
+
+| ADR | Tema | Estado |
+|---|---|---|
+| [ADR-001](architecture/decisions/ADR-001-jwt-signing-and-validation.md) | Firma y validación de JWT (HS256, clave compartida, helper común) | Aceptada |
+| [ADR-002](architecture/decisions/ADR-002-event-bus.md) | Tecnología del bus de eventos (Redis Pub/Sub, RabbitMQ, Redis Streams o diferirlo) | **Propuesta, sin decidir** |
+
+Sigue sin decisión ni ADR la estrategia de refresco y revocación de tokens.
 
 ## Planificado (no implementado)
 

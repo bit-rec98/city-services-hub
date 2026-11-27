@@ -303,5 +303,55 @@ public class AuthCommandHandlersTests
         result.Error.Code.Should().Be("Auth.AccountLocked");
     }
 
+
+    private User ActiveUserWithTwoFactor()
+    {
+        var user = User.Create("Juan", "Pérez", "juan@email.com", "12345678", DocumentType.DNI, "hashed_password");
+        user.VerifyEmail();
+        user.EnableTwoFactor("secret");
+
+        _userRepositoryMock
+            .Setup(x => x.GetByEmailAsync("juan@email.com", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(user);
+        _passwordHasherMock
+            .Setup(x => x.VerifyPassword("Password123!", "hashed_password"))
+            .Returns(true);
+
+        return user;
+    }
+
+    private LoginCommandHandler CreateLoginHandler() =>
+        new(_userRepositoryMock.Object, _passwordHasherMock.Object, _tokenServiceMock.Object);
+
+    [Fact]
+    public async Task Login_WithTwoFactorEnabledAndNoCode_ShouldRequireTwoFactor()
+    {
+        ActiveUserWithTwoFactor();
+
+        var result = await CreateLoginHandler().Handle(
+            new LoginCommand("juan@email.com", "Password123!"), CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Error.Code.Should().Be("Auth.TwoFactorRequired");
+    }
+
+    [Theory]
+    [InlineData("000000")]
+    [InlineData("123456")]
+    [InlineData("x")]
+    public async Task Login_WithTwoFactorEnabledAndAnyCode_ShouldNotIssueTokens(string code)
+    {
+        ActiveUserWithTwoFactor();
+
+        var result = await CreateLoginHandler().Handle(
+            new LoginCommand("juan@email.com", "Password123!", code), CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Error.Code.Should().Be("Auth.TwoFactorInvalid");
+        _tokenServiceMock.Verify(
+            x => x.GenerateAccessToken(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<IEnumerable<string>>()),
+            Times.Never);
+    }
+
     #endregion
 }
