@@ -4,16 +4,19 @@ services:
     image: postgres:15-alpine
     container_name: cityservices-postgres
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_MULTIPLE_DATABASES: identity_db,medical_appointments_db,notifications_db
+      POSTGRES_USER: ${POSTGRES_ADMIN_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:?Set POSTGRES_ADMIN_PASSWORD in .env}
+      # Contraseñas de los roles por servicio que crea scripts/init-databases.sh
+      IDENTITY_DB_PASSWORD: ${IDENTITY_DB_PASSWORD:?Set IDENTITY_DB_PASSWORD in .env}
+      APPOINTMENTS_DB_PASSWORD: ${APPOINTMENTS_DB_PASSWORD:?Set APPOINTMENTS_DB_PASSWORD in .env}
+      NOTIFICATIONS_DB_PASSWORD: ${NOTIFICATIONS_DB_PASSWORD:?Set NOTIFICATIONS_DB_PASSWORD in .env}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./scripts/init-databases.sh:/docker-entrypoint-initdb.d/init-databases.sh
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -41,8 +44,8 @@ services:
     image: rabbitmq:3-management-alpine
     container_name: cityservices-rabbitmq
     environment:
-      RABBITMQ_DEFAULT_USER: admin
-      RABBITMQ_DEFAULT_PASS: admin123
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?Set RABBITMQ_USER in .env}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}
     ports:
       - "5672:5672"
       - "15672:15672"
@@ -65,6 +68,7 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:80
+      - JwtSettings__SecretKey=${JWT_SECRET_KEY:?Set JWT_SECRET_KEY in .env}
     ports:
       - "5000:80"
     depends_on:
@@ -82,7 +86,8 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:80
-      - ConnectionStrings__IdentityDb=Host=postgres;Port=5432;Database=identity_db;Username=postgres;Password=postgres
+      - ConnectionStrings__IdentityDb=Host=postgres;Port=5432;Database=identity_db;Username=identity_user;Password=${IDENTITY_DB_PASSWORD:?Set IDENTITY_DB_PASSWORD in .env}
+      - JwtSettings__SecretKey=${JWT_SECRET_KEY:?Set JWT_SECRET_KEY in .env}
       - ConnectionStrings__Redis=redis:6379
     ports:
       - "5001:80"
@@ -103,7 +108,8 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:80
-      - ConnectionStrings__MedicalAppointmentsDb=Host=postgres;Port=5432;Database=medical_appointments_db;Username=postgres;Password=postgres
+      - ConnectionStrings__MedicalAppointmentsDb=Host=postgres;Port=5432;Database=medical_appointments_db;Username=appointments_user;Password=${APPOINTMENTS_DB_PASSWORD:?Set APPOINTMENTS_DB_PASSWORD in .env}
+      - JwtSettings__SecretKey=${JWT_SECRET_KEY:?Set JWT_SECRET_KEY in .env}
       - ConnectionStrings__Redis=redis:6379
     ports:
       - "5002:80"
