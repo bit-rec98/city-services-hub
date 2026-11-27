@@ -34,7 +34,7 @@ public class AppointmentsController : ControllerBase
     public async Task<IActionResult> CreateAppointment([FromBody] CreateAppointmentDto request)
     {
         var command = new CreateAppointmentCommand(
-            request.PatientId,
+            request.PatientId ?? Guid.Empty,
             request.PatientName,
             request.PatientDocumentNumber,
             request.PatientPhoneNumber,
