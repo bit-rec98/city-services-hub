@@ -19,17 +19,17 @@ public class RedisEventBus : IEventBus
     {
         var channel = @event.EventType;
         var message = JsonSerializer.Serialize(@event);
-        await _subscriber.PublishAsync(channel, message);
+        await _subscriber.PublishAsync(RedisChannel.Literal(channel), message);
     }
 
     public async Task SubscribeAsync<T>(Func<T, Task> handler, CancellationToken cancellationToken = default) where T : DomainEvent
     {
         var eventType = typeof(T).Name;
-        await _subscriber.SubscribeAsync(eventType, async (channel, message) =>
+        await _subscriber.SubscribeAsync(RedisChannel.Literal(eventType), async (channel, message) =>
         {
             if (message.HasValue)
             {
-                var @event = JsonSerializer.Deserialize<T>(message!);
+                var @event = JsonSerializer.Deserialize<T>((string)message!);
                 if (@event != null)
                 {
                     await handler(@event);
