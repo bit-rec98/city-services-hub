@@ -9,6 +9,7 @@ COPY ["src/Services/MedicalAppointments/MedicalAppointments.Domain/MedicalAppoin
 COPY ["src/Services/MedicalAppointments/MedicalAppointments.Infrastructure/MedicalAppointments.Infrastructure.csproj", "src/Services/MedicalAppointments/MedicalAppointments.Infrastructure/"]
 COPY ["src/BuildingBlocks/Common/Common.csproj", "src/BuildingBlocks/Common/"]
 COPY ["src/BuildingBlocks/Logging/Logging.csproj", "src/BuildingBlocks/Logging/"]
+COPY ["src/BuildingBlocks/Security/Security.csproj", "src/BuildingBlocks/Security/"]
 
 # Restaurar dependencias
 RUN dotnet restore "src/Services/MedicalAppointments/MedicalAppointments.API/MedicalAppointments.API.csproj"

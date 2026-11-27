@@ -1,4 +1,5 @@
 using CityServicesHub.BuildingBlocks.Logging;
+using CityServicesHub.BuildingBlocks.Security;
 using Identity.Application;
 using Identity.Infrastructure;
 using Identity.API.Middleware;
@@ -18,7 +19,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerConfiguration();
 
 // JWT Authentication
-builder.Services.AddJwtAuthentication(builder.Configuration);
+builder.Services.AddCityServicesJwtAuthentication(builder.Configuration);
 
 // Servicios de capas Application e Infrastructure
 builder.Services.AddApplicationServices();
@@ -30,15 +31,7 @@ builder.Services.AddHealthChecks()
     .AddRedis(builder.Configuration.GetConnectionString("Redis") ?? "");
 
 // CORS
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AllowAll", policy =>
-    {
-        policy.AllowAnyOrigin()
-              .AllowAnyMethod()
-              .AllowAnyHeader();
-    });
-});
+builder.Services.AddCityServicesCors(builder.Configuration);
 
 var app = builder.Build();
 
@@ -59,7 +52,7 @@ app.UseSerilogRequestLogging();
 
 app.UseHttpsRedirection();
 
-app.UseCors("AllowAll");
+app.UseCors(CorsExtensions.PolicyName);
 
 app.UseAuthentication();
 app.UseAuthorization();

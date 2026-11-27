@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\BuildingBlocks\Logging\Logging.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\Security\Security.csproj" />
     <ProjectReference Include="..\MedicalAppointments.Application\MedicalAppointments.Application.csproj" />
     <ProjectReference Include="..\MedicalAppointments.Infrastructure\MedicalAppointments.Infrastructure.csproj" />
   </ItemGroup>
