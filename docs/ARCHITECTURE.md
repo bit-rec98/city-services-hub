@@ -1,356 +1,96 @@
-# Arquitectura del Sistema
+# Arquitectura del sistema
 
-## Visión General
+Este documento describe la arquitectura **implementada hoy**. Lo que aún es solo una intención de diseño está agrupado en [Planificado (no implementado)](#planificado-no-implementado). Estado detallado y limitaciones: [SUMMARY.md](../SUMMARY.md).
 
-Hub Ciudadano es un sistema de microservicios diseñado siguiendo principios de Clean Architecture, CQRS y Event-Driven Architecture para proporcionar servicios municipales de alta disponibilidad y escalabilidad.
+## Visión general
 
-## Principios Arquitectónicos
+Hub de Servicios Ciudadanos es un conjunto de microservicios .NET 8 detrás de un API Gateway, con un frontend React. Cada servicio sigue Clean Architecture y CQRS (MediatR) y tiene su propia base de datos PostgreSQL.
 
-### 1. Clean Architecture
-
-Cada microservicio sigue Clean Architecture con las siguientes capas:
-
-```
-├── Domain/              # Entidades, Value Objects, Reglas de negocio
-├── Application/         # Use Cases, CQRS Handlers, Interfaces
-├── Infrastructure/      # Implementaciones, DB, External Services
-└── API/                 # Controllers, Middleware, Configuration
-```
-
-**Beneficios:**
-- Independencia del framework
-- Testabilidad
-- Independencia de la UI
-- Independencia de la base de datos
-- Independencia de cualquier agencia externa
-
-### 2. CQRS (Command Query Responsibility Segregation)
-
-Separación de operaciones de lectura y escritura:
-
-**Commands (Escritura):**
-- Modifican el estado del sistema
-- Validan reglas de negocio
-- Publican eventos de dominio
-- Ejemplo: `CreateAppointmentCommand`, `UpdateTaxPaymentCommand`
-
-**Queries (Lectura):**
-- Solo leen datos
-- Optimizadas para rendimiento
-- Pueden usar vistas materializadas
-- Ejemplo: `GetAppointmentByIdQuery`, `GetTaxesByUserQuery`
-
-### 3. Event-Driven Architecture
-
-**Eventos de Dominio:**
-- Comunicación asíncrona entre microservicios
-- Desacoplamiento
-- Eventual consistency
-- Procesamiento distribuido
-
-**Flujo de Eventos:**
-```
-Service A -> Evento -> Message Broker (Redis) -> Service B
+```mermaid
+flowchart LR
+    Web[Frontend React] --> GW[API Gateway - YARP]
+    GW --> ID[Identity API]
+    GW --> MA[Medical Appointments API]
+    GW --> NO[Notifications API]
+    ID --> PG[(PostgreSQL)]
+    MA --> PG
+    NO --> PG
+    ID --> RD[(Redis)]
+    MA --> RD
 ```
 
-**Ejemplos de Eventos:**
-- `AppointmentCreated`
-- `TaxPaymentCompleted`
-- `EmployeeHired`
-- `LegislativeProcessStarted`
+Cada servicio usa su propia base de datos (`identity_db`, `medical_appointments_db`, `notifications_db`) y su propio rol de PostgreSQL con permisos solo sobre esa base. Redis se usa como caché distribuida en Identity y Medical Appointments (por ejemplo, para códigos de verificación).
 
-## Patrones Implementados
+## Componentes
 
-### 1. Repository Pattern
+| Componente | Ubicación | Responsabilidad | Estado |
+|---|---|---|---|
+| API Gateway | `src/ApiGateway` | Enrutamiento (YARP), rate limiting por IP, CORS. Registra la validación de JWT, pero no exige autenticación en ninguna ruta: cada servicio valida el token | Implementado; destinos en `localhost` |
+| Identity | `src/Services/Identity` | Registro, login, emisión de JWT, usuarios y roles | Parcial |
+| Medical Appointments | `src/Services/MedicalAppointments` | Turnos médicos y centros de salud | Parcial |
+| Notifications | `src/Services/Notifications` | Notificaciones por usuario y despacho por canal | Parcial; senders externos son stubs |
+| Frontend | `src/WebApp` | Interfaz de usuario | Parcial |
+| BuildingBlocks | `src/BuildingBlocks` | Código compartido: `Common`, `EventBus`, `Logging`, `Security` | Implementado |
 
-Abstracción del acceso a datos:
-
-```csharp
-public interface IRepository<T> where T : class
-{
-    Task<T> GetByIdAsync(Guid id);
-    Task<IEnumerable<T>> GetAllAsync();
-    Task AddAsync(T entity);
-    Task UpdateAsync(T entity);
-    Task DeleteAsync(Guid id);
-}
-```
-
-### 2. Saga Pattern
-
-Transacciones distribuidas para mantener consistencia:
-
-**Ejemplo:** Proceso de pago de impuestos
-1. Validar impuesto
-2. Procesar pago
-3. Actualizar registro
-4. Enviar notificación
-5. Compensación en caso de fallo
-
-### 3. Circuit Breaker Pattern
-
-Resiliencia ante fallos de servicios:
+### Estructura de un servicio
 
 ```
-Estados: Closed -> Open -> Half-Open -> Closed
+Servicio/
+├── Servicio.Domain/          # Entidades, value objects, eventos de dominio, interfaces de repositorio
+├── Servicio.Application/     # Comandos y queries (MediatR), DTOs, validadores, reglas de acceso
+├── Servicio.Infrastructure/  # EF Core, repositorios, integraciones externas
+├── Servicio.API/             # Controladores, middleware y composición
+└── Servicio.Tests/           # Pruebas xUnit
 ```
 
-- **Closed:** Operación normal
-- **Open:** Servicio caído, respuesta rápida de error
-- **Half-Open:** Intentando recuperación
+Dependencias: `API → Application → Domain` e `Infrastructure → Application/Domain`. La lógica de negocio y las reglas de acceso viven en la capa Application; los controladores solo traducen resultados a HTTP.
 
-### 4. API Gateway Pattern
+### BuildingBlocks
 
-Punto de entrada único:
-- Enrutamiento
-- Autenticación/Autorización
-- Rate Limiting
-- Agregación de respuestas
-- Transformación de protocolos
+| Proyecto | Contenido |
+|---|---|
+| `Common` | `Result`/`Error`, abstracciones CQRS, entidades base, `ICurrentUserService` |
+| `Logging` | Configuración de Serilog y logging de peticiones |
+| `Security` | `AddCityServicesJwtAuthentication`, `AddCityServicesCors`, `HttpContextCurrentUserService` (con `Security.Tests`) |
+| `EventBus` | Abstracciones de bus de eventos y manejador de suscripciones (sin uso activo) |
 
-## Microservicios
-
-### Medical Appointments Service
-
-**Responsabilidades:**
-- Gestión de turnos médicos
-- Calendario de disponibilidad
-- Notificaciones de recordatorio
-- Cancelación y reprogramación
-
-**Tecnologías:**
-- .NET 8
-- PostgreSQL
-- Redis Cache
-- MediatR (CQRS)
-
-**Endpoints principales:**
-- POST /api/appointments
-- GET /api/appointments/{id}
-- PUT /api/appointments/{id}
-- DELETE /api/appointments/{id}
-- GET /api/appointments/available
-
-### Legislative Management Service
-
-**Responsabilidades:**
-- Trámites y expedientes
-- Seguimiento de procesos
-- Gestión de documentos
-- Aprobaciones y firmas
-
-**Tecnologías:**
-- .NET 8
-- PostgreSQL
-- Document Storage
-- Event Sourcing
-
-### HR Management Service
-
-**Responsabilidades:**
-- Gestión de empleados
-- Licencias y permisos
-- Evaluaciones
-- Nómina
-
-**Tecnologías:**
-- .NET 8
-- PostgreSQL
-- Redis
-- Saga Pattern para workflows
-
-### Tax Services
-
-**Responsabilidades:**
-- Gestión de impuestos
-- Procesamiento de pagos
-- Consulta de deudas
-- Generación de comprobantes
-
-**Tecnologías:**
-- .NET 8
-- PostgreSQL
-- Redis
-- Circuit Breaker
-
-## Bases de Datos
-
-### PostgreSQL
-
-Cada microservicio tiene su propia base de datos (Database per Service):
-
-- `medical_appointments_db`
-- `legislative_db`
-- `hr_db`
-- `tax_services_db`
-
-**Ventajas:**
-- Aislamiento de datos
-- Escalabilidad independiente
-- Tecnología específica por servicio
-
-### Redis
-
-**Usos:**
-- Cache distribuido
-- Message broker
-- Session storage
-- Rate limiting
-
-## Comunicación
-
-### Síncrona
-- HTTP/REST entre frontend y gateway
-- gRPC entre servicios (opcional)
-
-### Asíncrona
-- Event Bus con Redis Pub/Sub
-- Message Queue para procesamiento en background
+`src/Shared/` contiene tipos equivalentes a los de `BuildingBlocks`, no forma parte de la solución y está pendiente de consolidarse.
 
 ## Seguridad
 
-### Autenticación
-- JWT Tokens
-- OAuth 2.0 / OpenID Connect
-- Refresh tokens
+### Implementado
 
-### Autorización
-- Role-based (RBAC)
-- Policy-based
-- Claims-based
+- **Autenticación:** JWT Bearer firmado con HS256. Un solo contrato de configuración (`JwtSettings:SecretKey`, `Issuer`, `Audience`) para Identity, Medical Appointments, Notifications y el gateway. Se validan firma, emisor, audiencia y expiración; solo se acepta HS256; la clave debe tener al menos 32 bytes y el servicio no arranca si falta.
+- **Contraseñas:** BCrypt (costo 12). La cuenta se bloquea 15 minutos tras 5 intentos fallidos.
+- **Autorización:** los endpoints de turnos y notificaciones exigen token. En Medical Appointments, un turno solo es accesible para su paciente titular o `Administrator`/`SuperAdmin`; la identidad se toma del token y los turnos ajenos responden `404`. Identity restringe `GET /auth/{id}` a administradores.
+- **CORS:** lista explícita de orígenes (`Cors:AllowedOrigins`); el comodín `*` se rechaza al iniciar.
+- **Secretos:** fuera del repositorio. Se inyectan por variables de entorno (`.env`, ignorado por git; plantilla en `.env.example`); `docker-compose.yml` falla si falta alguna.
+- **Base de datos:** un rol de PostgreSQL por servicio, dueño únicamente de su base; los servicios no usan la cuenta administradora.
+- **Rate limiting:** en el gateway (por IP), con un límite más estricto para `/auth/login`.
 
-### Protección
-- HTTPS obligatorio
-- CORS configurado
-- Rate limiting
-- Input validation
-- SQL injection prevention
-- XSS protection
+### Limitaciones de seguridad conocidas
 
-## Escalabilidad
+Medical Appointments no valida sus entradas, 2FA no se verifica, el frontend guarda tokens en `localStorage`, el rate limiting confía en `X-Real-IP` del cliente y hay dependencias con avisos de seguridad. Detalle y prioridad en [SUMMARY.md](../SUMMARY.md).
 
-### Horizontal Scaling
-- Múltiples instancias de cada servicio
-- Load balancing
-- Stateless services
+## Comunicación
 
-### Vertical Scaling
-- Recursos por contenedor
-- Database optimization
-- Cache strategies
+- **Síncrona:** HTTP/REST entre el frontend y el gateway, y del gateway a los servicios.
+- **Asíncrona:** no operativa. Existe una implementación `RedisEventBus` (publicación por canales de Redis) y los agregados generan eventos de dominio, pero el bus no está registrado en la inyección de dependencias y ningún flujo activo publica ni consume eventos.
 
-### Performance
-- Redis caching
-- Database indexing
-- Connection pooling
-- Async/await patterns
-- Lazy loading
+## Despliegue
 
-## Monitoreo y Observabilidad
+`docker-compose.yml` define PostgreSQL, Redis, RabbitMQ, el gateway, Identity, Medical Appointments y el frontend (Nginx). RabbitMQ no tiene uso en el código. Notifications no está incluido. No hay entornos de staging ni producción definidos. CI en `.github/workflows/ci.yml`: compilación y pruebas del backend, lint y build del frontend, y build de imágenes Docker en push a `main`.
 
-### Health Checks
-- Liveness probes
-- Readiness probes
-- Startup probes
+## Decisiones pendientes
 
-### Logging
-- Structured logging
-- Centralized logs
-- Log levels
+Estas decisiones no están tomadas y no hay ADR que las registre: bus de eventos (Redis o RabbitMQ), esquema de firma de JWT (clave simétrica compartida o RS256 con clave pública), y estrategia de refresco de tokens.
 
-### Metrics
-- Request rate
-- Response time
-- Error rate
-- Resource usage
+## Planificado (no implementado)
 
-### Tracing
-- Distributed tracing
-- Correlation IDs
-- Request flow
+Lo siguiente aparece en el diseño original, pero no existe código:
 
-## DevOps
-
-### CI/CD
-- Automated builds
-- Automated tests
-- Automated deployment
-
-### Infrastructure as Code
-- Docker
-- Docker Compose
-- Kubernetes (opcional)
-
-### Environments
-- Development
-- Staging
-- Production
-
-## Diagrama de Arquitectura
-
-```
-┌─────────────────┐
-│   React App     │
-│  (Port 3000)    │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│   API Gateway   │◄──── JWT Auth
-│  (Port 5000)    │
-└────────┬────────┘
-         │
-    ┌────┴────┬─────────┬─────────┐
-    ▼         ▼         ▼         ▼
-┌────────┐┌────────┐┌────────┐┌────────┐
-│Medical ││Legisla-││   HR   ││  Tax   │
-│Appoint ││tive    ││Mgmt    ││Services│
-│:5001   ││:5002   ││:5003   ││:5004   │
-└───┬────┘└───┬────┘└───┬────┘└───┬────┘
-    │         │         │         │
-    └─────────┴────┬────┴─────────┘
-                   ▼
-            ┌──────────────┐
-            │  Redis Bus   │
-            │  (Events)    │
-            └──────────────┘
-                   │
-         ┌─────────┴─────────┐
-         ▼                   ▼
-    ┌─────────┐         ┌─────────┐
-    │PostgreSQL│         │  Redis  │
-    │Databases│         │  Cache  │
-    └─────────┘         └─────────┘
-```
-
-## Flujo de Datos
-
-### Crear Turno Médico
-
-1. Usuario envía petición desde React
-2. API Gateway valida token y enruta
-3. Medical Service recibe comando
-4. Valida reglas de negocio
-5. Persiste en PostgreSQL
-6. Publica evento `AppointmentCreated`
-7. Otros servicios reaccionan al evento
-8. Retorna respuesta al cliente
-
-## Consideraciones de Producción
-
-### Alta Disponibilidad
-- Réplicas de servicios
-- Database replication
-- Redis cluster
-- Load balancer
-
-### Disaster Recovery
-- Backups automáticos
-- Recovery procedures
-- Failover strategies
-
-### Compliance
-- GDPR / Data protection
-- Audit logs
-- Data encryption
-- Access control
+- Servicios Legislative, HR, Tax Management, Document Management y Citizen Portal.
+- Saga para flujos distribuidos, Circuit Breaker, event sourcing.
+- OAuth 2.0 / OpenID Connect, políticas de autorización por atributos, MFA operativo.
+- Observabilidad: métricas, trazas distribuidas, correlación de peticiones.
+- Réplicas, alta disponibilidad, backups y recuperación ante desastres.

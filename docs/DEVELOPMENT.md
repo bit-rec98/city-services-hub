@@ -1,289 +1,128 @@
-# Guía de Desarrollo
+# Guía de desarrollo
+
+Guía para preparar el entorno y trabajar en el proyecto. Para el panorama general, ver el [README](../README.md); para el estado real y las limitaciones, [SUMMARY.md](../SUMMARY.md).
 
 ## Requisitos
 
-- Docker Desktop 20.10+
 - .NET 8 SDK
-- Node.js 18+
-- PostgreSQL 15+ (o usar Docker)
-- Redis 7+ (o usar Docker)
+- Node.js 20+ y npm
+- Docker con Docker Compose v2 (PostgreSQL y Redis se ejecutan en contenedores)
 
-## Configuración del Entorno de Desarrollo
-
-### 1. Clonar el Repositorio
+## 1. Clonar y configurar
 
 ```bash
 git clone https://github.com/bit-rec98/city-services-hub.git
 cd city-services-hub
+git switch development       # el trabajo vive en `development`; `main` solo tiene el commit inicial
+cp .env.example .env
 ```
 
-### 2. Variables de Entorno
+Completar cada valor de `.env` (ver la tabla de variables en el [README](../README.md#configuración)). Los valores de `.env.example` son marcadores de posición; `.env` está ignorado por git y no debe commitearse. Para generar secretos: `openssl rand -base64 48`.
 
-Cada microservicio puede usar estas variables de entorno:
+## 2. Infraestructura
 
 ```bash
-ConnectionStrings__DefaultConnection=Host=localhost;Port=5432;Database=medical_appointments_db;Username=postgres;Password=postgres123
-ConnectionStrings__Redis=localhost:6379
+docker compose up -d postgres redis
 ```
 
-### 3. Iniciar con Docker Compose
+Al crear el volumen por primera vez, `scripts/init-databases.sh` crea una base y un rol por servicio (`identity_db`/`identity_user`, `medical_appointments_db`/`appointments_user`, `notifications_db`/`notifications_user`) con las contraseñas del `.env`. Si cambia esas contraseñas con el volumen ya creado, hay que recrear el volumen (`docker compose down -v` borra los datos locales).
 
-La forma más fácil de iniciar todos los servicios:
+## 3. Backend
+
+Cada servicio necesita, como mínimo, la clave JWT y su cadena de conexión. Ejemplo para Identity:
 
 ```bash
-docker-compose up -d
+export JwtSettings__SecretKey="<el valor de JWT_SECRET_KEY>"
+export ConnectionStrings__IdentityDb="Host=localhost;Port=5432;Database=identity_db;Username=identity_user;Password=<IDENTITY_DB_PASSWORD>"
+ASPNETCORE_URLS=http://localhost:5001 dotnet run --project src/Services/Identity/Identity.API
 ```
 
-Esto iniciará:
-- PostgreSQL (puerto 5432)
-- Redis (puerto 6379)
-- API Gateway (puerto 5000)
-- Medical Appointments Service (puerto 5001)
-- Frontend React (puerto 3000)
+| Servicio | Proyecto | Puerto esperado por el gateway | Cadena de conexión |
+|---|---|---|---|
+| Identity | `src/Services/Identity/Identity.API` | 5001 | `ConnectionStrings__IdentityDb` |
+| Medical Appointments | `src/Services/MedicalAppointments/MedicalAppointments.API` | 5002 | `ConnectionStrings__MedicalAppointmentsDb` |
+| Notifications | `src/Services/Notifications/Notifications.API` | 5003 | `ConnectionStrings__NotificationsDb` |
+| API Gateway | `src/ApiGateway` | 5000 | — (solo `JwtSettings__SecretKey`) |
 
-### 4. Desarrollo Local
+Si falta `JwtSettings__SecretKey`, o tiene menos de 32 bytes, el servicio no arranca. Swagger está disponible en `/swagger` cuando `ASPNETCORE_ENVIRONMENT=Development`.
 
-#### Backend (.NET)
+### Migraciones de base de datos
 
-Para desarrollar un microservicio específico:
+El repositorio **no contiene migraciones de EF Core** y los servicios no aplican el esquema al iniciar, por lo que las tablas no existen en una base nueva. Para crear la primera migración de un servicio (ejemplo con Identity; requiere `dotnet-ef`):
 
 ```bash
-cd src/Services/MedicalAppointments/MedicalAppointments.API
-dotnet restore
-dotnet run
+dotnet tool install --global dotnet-ef
+dotnet ef migrations add InitialCreate \
+  --project src/Services/Identity/Identity.Infrastructure \
+  --startup-project src/Services/Identity/Identity.API
+dotnet ef database update \
+  --project src/Services/Identity/Identity.Infrastructure \
+  --startup-project src/Services/Identity/Identity.API
 ```
 
-Migrar base de datos:
+Estos comandos **no se ejecutaron** al escribir esta guía. `Microsoft.EntityFrameworkCore.Design` está referenciado en Identity.Infrastructure y Notifications.Infrastructure, pero **no** en MedicalAppointments.Infrastructure, donde habría que agregarlo antes de crear su migración. Las migraciones deben revisarse y probarse antes de aplicarse en cualquier entorno compartido. Los DbContext son `IdentityDbContext`, `MedicalAppointmentsDbContext` y `NotificationsDbContext`.
+
+## 4. Frontend
 
 ```bash
-dotnet ef migrations add InitialCreate --project ../MedicalAppointments.Infrastructure
-dotnet ef database update --project ../MedicalAppointments.Infrastructure
+cd src/WebApp
+npm ci
+npm run dev        # http://localhost:5173
 ```
 
-#### Frontend (React)
+La URL del backend se define con `VITE_API_URL` (por defecto `http://localhost:5000/api/v1`, el gateway). Con `npm run build` se compila y se comprueban los tipos. No hay pruebas automatizadas del frontend.
+
+## 5. Docker Compose completo
 
 ```bash
-cd src/Web/ClientApp
-npm install
-npm run dev
+docker compose up -d --build
 ```
 
-El frontend estará disponible en http://localhost:5173 (Vite dev server)
+Falla de inmediato, indicando la variable, si falta algún valor requerido del `.env`. Puertos: frontend 3000, gateway 5000, Identity 5001, Medical Appointments 5002, PostgreSQL 5432, Redis 6379, RabbitMQ 5672/15672. Limitaciones de este modo (Notifications ausente, gateway apuntando a `localhost`, esquema sin crear): [SUMMARY.md](../SUMMARY.md).
 
-### 5. Acceder a los Servicios
-
-- **Frontend:** http://localhost:3000
-- **API Gateway:** http://localhost:5000
-  - Swagger: http://localhost:5000/swagger
-- **Medical Appointments:** http://localhost:5001
-  - Health: http://localhost:5001/health
-- **PostgreSQL:** localhost:5432
-- **Redis:** localhost:6379
-
-## Estructura de un Microservicio
-
-Cada microservicio sigue Clean Architecture:
-
-```
-MedicalAppointments/
-├── MedicalAppointments.Domain/       # Entidades, Value Objects
-│   └── Entities/
-│       ├── Appointment.cs
-│       └── Doctor.cs
-├── MedicalAppointments.Application/  # Use Cases, CQRS
-│   ├── Commands/
-│   │   └── CreateAppointment/
-│   ├── Queries/
-│   │   └── GetAppointment/
-│   └── DTOs/
-├── MedicalAppointments.Infrastructure/ # Implementaciones
-│   ├── Data/
-│   │   └── AppointmentsDbContext.cs
-│   ├── Repositories/
-│   │   └── Repository.cs
-│   └── EventBus/
-│       └── RedisEventBus.cs
-└── MedicalAppointments.API/          # Controllers, Startup
-    ├── Controllers/
-    │   └── AppointmentsController.cs
-    └── Program.cs
-```
-
-## Patrones Implementados
-
-### CQRS
-
-**Commands** (escritura):
-```csharp
-public record CreateAppointmentCommand : IRequest<Result<AppointmentDto>>
-{
-    public string PatientName { get; init; }
-    // ...
-}
-```
-
-**Queries** (lectura):
-```csharp
-public record GetAppointmentByIdQuery(Guid Id) : IRequest<Result<AppointmentDto>>;
-```
-
-### Repository Pattern
-
-```csharp
-public class Repository<T> : IRepository<T> where T : BaseEntity
-{
-    public async Task<T> GetByIdAsync(Guid id) { ... }
-    public async Task<T> AddAsync(T entity) { ... }
-    // ...
-}
-```
-
-### Event Bus
-
-```csharp
-// Publicar evento
-await _eventBus.PublishAsync(new AppointmentCreatedEvent
-{
-    AppointmentId = appointment.Id,
-    // ...
-});
-
-// Suscribirse a evento
-await _eventBus.SubscribeAsync<AppointmentCreatedEvent>(async (@event) =>
-{
-    // Manejar evento
-});
-```
-
-## Testing
-
-### Backend
+## Pruebas
 
 ```bash
-cd src/Services/MedicalAppointments
-dotnet test
+dotnet test CityServicesHub.sln
 ```
 
-### Frontend
+| Proyecto | Cubre |
+|---|---|
+| `Identity.Tests` | Dominio, value objects y handlers de autenticación |
+| `MedicalAppointments.Tests` | Dominio y autorización por propietario de los handlers de turnos |
+| `Notifications.Tests` | Dominio de notificaciones |
+| `Security.Tests` | Contrato de validación JWT, CORS y usuario actual |
+
+Las pruebas son unitarias y no necesitan PostgreSQL ni Redis. No hay pruebas de integración ni de API.
+
+## Calidad y CI
+
+`.github/workflows/ci.yml` se ejecuta en push y pull request a `main` y `development`. Compila con `dotnet build`, ejecuta `dotnet test`, y hace lint y build del frontend. El lint del frontend y `dotnet format` están configurados como no bloqueantes. Para reproducir localmente (`dotnet format` no se ejecutó al escribir esta guía y puede reportar cambios pendientes):
 
 ```bash
-cd src/Web/ClientApp
-npm test
+dotnet build CityServicesHub.sln --configuration Release
+dotnet test CityServicesHub.sln --configuration Release
+dotnet format CityServicesHub.sln --verify-no-changes
+(cd src/WebApp && npm run lint && npm run build)
 ```
 
-## Base de Datos
+## Convenciones del backend
 
-### Migrations (Entity Framework Core)
+- Nuevas capacidades siguen el patrón existente: comando o query en `Application`, handler, validador y, si corresponde, controlador delgado en `API`.
+- Las reglas de negocio y de acceso van en `Application`/`Domain`, no en los controladores.
+- La identidad del usuario se obtiene de `ICurrentUserService` (token validado), nunca de datos del cliente.
+- Autenticación JWT y CORS se registran con `AddCityServicesJwtAuthentication` y `AddCityServicesCors` de `BuildingBlocks/Security`; no se definen por servicio.
+- Los secretos nunca van en `appsettings*.json` ni en el código.
 
-Crear migración:
-```bash
-dotnet ef migrations add MigrationName --project MedicalAppointments.Infrastructure --startup-project MedicalAppointments.API
-```
+## Resolución de problemas
 
-Aplicar migración:
-```bash
-dotnet ef database update --project MedicalAppointments.Infrastructure --startup-project MedicalAppointments.API
-```
+| Síntoma | Causa probable |
+|---|---|
+| El servicio termina al arrancar con `JwtSettings:SecretKey no está configurado` | Falta `JwtSettings__SecretKey` en el entorno |
+| `docker compose` informa `required variable ... is missing` | Falta esa variable en `.env` |
+| `permission denied for database ...` | Se usa el rol de otro servicio en la cadena de conexión |
+| Errores `relation ... does not exist` | No se aplicaron migraciones (ver arriba) |
+| El gateway no alcanza a los servicios dentro de Docker | Sus destinos apuntan a `localhost` |
+| Puerto en uso | `lsof -ti:5000` (Linux/macOS) y detener el proceso que lo ocupa |
 
-### Conectar a PostgreSQL
-
-```bash
-docker exec -it city-services-postgres psql -U postgres
-\l                                    # Listar bases de datos
-\c medical_appointments_db            # Conectar a BD
-\dt                                   # Listar tablas
-```
-
-### Conectar a Redis
-
-```bash
-docker exec -it city-services-redis redis-cli
-PING                                  # Test conexión
-KEYS *                                # Ver todas las claves
-```
-
-## Resolución de Problemas
-
-### Puerto ya en uso
-
-```bash
-# Windows
-netstat -ano | findstr :5000
-taskkill /PID <PID> /F
-
-# Linux/Mac
-lsof -ti:5000 | xargs kill -9
-```
-
-### Limpiar Docker
-
-```bash
-docker-compose down -v           # Detener y eliminar volúmenes
-docker system prune -a           # Limpiar todo
-```
-
-### Rebuild contenedores
-
-```bash
-docker-compose up -d --build
-```
-
-## API Endpoints
-
-### Medical Appointments
-
-#### POST /api/appointments
-Crear nuevo turno médico
-
-```json
-{
-  "patientId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-  "patientName": "Juan Pérez",
-  "patientEmail": "juan@example.com",
-  "doctorId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-  "appointmentDate": "2026-02-01T10:00:00Z",
-  "notes": "Consulta general"
-}
-```
-
-#### GET /api/appointments/{id}
-Obtener turno por ID
-
-## Contribuir
-
-1. Fork del repositorio
-2. Crear branch (`git checkout -b feature/nueva-funcionalidad`)
-3. Commit cambios (`git commit -am 'Agregar nueva funcionalidad'`)
-4. Push al branch (`git push origin feature/nueva-funcionalidad`)
-5. Crear Pull Request
-
-## Stack Tecnológico
-
-### Backend
-- .NET 8
-- ASP.NET Core Web API
-- Entity Framework Core 8
-- MediatR (CQRS)
-- FluentValidation
-- Npgsql (PostgreSQL)
-- StackExchange.Redis
-- Ocelot (API Gateway)
-
-### Frontend
-- React 18
-- Vite
-- React Router v6
-- TanStack Query (React Query)
-- Zustand
-- Tailwind CSS
-- Axios
-
-### Infraestructura
-- Docker & Docker Compose
-- PostgreSQL 15
-- Redis 7
-- Nginx
-
-## Licencia
-
-MIT
+Para detener la infraestructura: `docker compose down`. Con `-v` también se borran los volúmenes (datos locales).
