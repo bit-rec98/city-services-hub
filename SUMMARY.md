@@ -7,16 +7,16 @@ Resumen verificable del estado del proyecto. Cada afirmación se contrastó con 
 | Comprobación | Resultado |
 |---|---|
 | `dotnet build CityServicesHub.sln` | Correcto (con advertencias de dependencias vulnerables, ver más abajo) |
-| `dotnet test CityServicesHub.sln` | Correcto: Identity, Medical Appointments, Notifications y Security |
+| `dotnet test CityServicesHub.sln` | Correcto: pruebas unitarias (Identity, Medical Appointments, Notifications y Security) y de integración (Identity y Medical Appointments, con PostgreSQL en Docker) |
 | `npm run lint` y `npm run build` en `src/WebApp` | Correcto |
 | `docker compose config` con un `.env` completo / sin `.env` | Valida / falla indicando la variable faltante |
 | Script `scripts/init-databases.sh` en un contenedor `postgres:17-alpine` | Crea un rol y una base por servicio; cada rol solo puede conectarse a su base |
 | Arranque de cada servicio sin `JwtSettings__SecretKey` | Falla al iniciar |
-| Appointments API contra PostgreSQL 17 real (migraciones al arrancar, rol de mínimo privilegio) con JWT firmados con la clave de prueba | 22 comprobaciones HTTP correctas: 401 sin token, validación 400, paciente tomado del token, 404/403 sobre turnos ajenos, acceso de administrador, 409 por horario ocupado, confirmar y cancelar |
-| Identity API contra PostgreSQL real | Login (200) con roles en `jsonb`, `GET /auth/me` con y sin token, 2FA: sin código se pide, con cualquier código 401 y sin emitir tokens. El registro **no** se probó de extremo a extremo (necesita Redis) |
+| Appointments API sobre PostgreSQL real (migraciones al arrancar, rol de mínimo privilegio, JWT firmados con la clave de prueba) | 21 pruebas de integración automatizadas: 401 sin token o con firma alterada, validación 400, paciente tomado del token, 404/403 sobre turnos ajenos, acceso de administrador, 409 por horario ocupado, confirmar y cancelar, `patient/me`, listado público de centros |
+| Identity API sobre PostgreSQL real (Redis reemplazado por caché en memoria) | 17 pruebas de integración automatizadas: registro (todos los tipos de documento, duplicados 409, contraseña débil), login con tokens y refresh token persistido, respuesta idéntica para contraseña errónea y email inexistente, bloqueo tras 5 intentos, `GET /auth/me`, restricción de `GET /auth/{id}` a administradores, 2FA (se pide el código y nunca se acepta). Con el bug del refresh token reintroducido, 3 de ellas fallan |
 | Migraciones | Las tres se aplican en una base vacía; el gateway usa el destino sobrescrito por variable de entorno |
 
-**No verificado:** `docker compose up` completo (no se construyeron las imágenes), Redis (registro y códigos de verificación), Notifications en ejecución, y el flujo de extremo a extremo entre frontend, gateway y servicios. Las pruebas HTTP descritas arriba son manuales y no están automatizadas en el repositorio.
+**No verificado:** `docker compose up` completo (no se construyeron las imágenes), el comportamiento con un Redis real (el registro y los códigos de verificación), Notifications en ejecución, y el flujo de extremo a extremo entre frontend, gateway y servicios. Las pruebas de integración se ejecutaron localmente con `postgres:17-alpine`; el compose y la configuración por defecto usan `postgres:15-alpine`, y su ejecución en CI aún no se ha observado.
 
 ## Estado por componente
 
@@ -63,7 +63,7 @@ Resumen verificable del estado del proyecto. Cada afirmación se contrastó con 
 **Otras**
 
 - `TreatWarningsAsErrors` está desactivado; el lint y la comprobación de formato en CI no bloquean el pipeline (`continue-on-error`).
-- No hay pruebas automatizadas del frontend ni pruebas de API/integración del backend.
+- No hay pruebas automatizadas del frontend, ni de integración para Notifications ni para el gateway.
 - `AuthResponseDto.ExpiresAt` está fijado a una hora, aunque la expiración del token se configura con `JwtSettings:ExpirationMinutes`.
 
 ## Documentación relacionada

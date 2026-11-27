@@ -25,7 +25,9 @@ Rules that matter most here:
 
 ```bash
 dotnet build CityServicesHub.sln
-dotnet test CityServicesHub.sln                  # unit tests only; no database or Redis needed
+dotnet test CityServicesHub.sln --filter "Category!=Integration"   # unit tests: fast, no Docker
+dotnet test CityServicesHub.sln --filter "Category=Integration"    # integration tests: real APIs on Postgres via Testcontainers (needs Docker;
+                                                                   # TEST_POSTGRES_IMAGE overrides the default postgres:15-alpine)
 dotnet tool restore                              # installs the pinned dotnet-ef (.config/dotnet-tools.json)
 
 cd src/WebApp && npm ci && npm run lint && npm run build   # the frontend has no test suite
@@ -42,7 +44,7 @@ dotnet tool run dotnet-ef migrations add <Name> \
 
 ## Layout and conventions
 
-- `src/Services/<Service>/` is split into `.Domain`, `.Application` (MediatR commands/queries, validators, access rules), `.Infrastructure` (EF Core, repositories) and `.API` (thin controllers), plus `.Tests` (xUnit, FluentAssertions, Moq).
+- `src/Services/<Service>/` is split into `.Domain`, `.Application` (MediatR commands/queries, validators, access rules), `.Infrastructure` (EF Core, repositories) and `.API` (thin controllers), plus `.Tests` (unit; xUnit, FluentAssertions, Moq) and, for Identity and Medical Appointments, `.IntegrationTests` (`WebApplicationFactory` + Testcontainers). Mocks hid several real bugs here (jsonb, EF keys, validators), so add or extend an integration test when changing persistence, validation or authorization behavior.
 - Business and access rules live in `Application`/`Domain`, not in controllers. Handlers return `Result`/`Result<T>`; controllers map error codes to HTTP statuses.
 - Shared building blocks are in `src/BuildingBlocks` (`Common`, `Logging`, `Security`, `EventBus`). JWT validation and CORS are registered only through `AddCityServicesJwtAuthentication` and `AddCityServicesCors`; do not reimplement them per service.
 - Each service owns its PostgreSQL database and role. Do not connect as the superuser or share databases across services.

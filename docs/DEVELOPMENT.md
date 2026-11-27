@@ -93,25 +93,34 @@ Falla de inmediato, indicando la variable, si falta algún valor requerido del `
 ## Pruebas
 
 ```bash
-dotnet test CityServicesHub.sln
+dotnet test CityServicesHub.sln --filter "Category!=Integration"   # unitarias: rápidas, sin Docker
+dotnet test CityServicesHub.sln --filter "Category=Integration"    # de integración: requieren Docker
+dotnet test CityServicesHub.sln                                    # todas
 ```
 
-| Proyecto | Cubre |
-|---|---|
-| `Identity.Tests` | Dominio, value objects y handlers de autenticación |
-| `MedicalAppointments.Tests` | Dominio y autorización por propietario de los handlers de turnos |
-| `Notifications.Tests` | Dominio de notificaciones |
-| `Security.Tests` | Contrato de validación JWT, CORS y usuario actual |
+| Proyecto | Tipo | Cubre |
+|---|---|---|
+| `Identity.Tests` | Unitarias | Dominio, value objects, validadores y handlers de autenticación (incluido 2FA) |
+| `MedicalAppointments.Tests` | Unitarias | Dominio, validación y autorización por propietario de los handlers de turnos |
+| `Notifications.Tests` | Unitarias | Dominio de notificaciones |
+| `Security.Tests` | Unitarias | Contrato de validación JWT, CORS y usuario actual |
+| `Identity.IntegrationTests` | Integración | API real de Identity sobre PostgreSQL: registro, login, bloqueo de cuenta, tokens, roles, 2FA |
+| `MedicalAppointments.IntegrationTests` | Integración | API real de turnos sobre PostgreSQL: JWT, validación, propiedad de los turnos, conflictos de horario |
 
-Las pruebas son unitarias y no necesitan PostgreSQL ni Redis. No hay pruebas de integración ni de API.
+Las pruebas de integración levantan la API con `WebApplicationFactory` y un PostgreSQL desechable con [Testcontainers](https://dotnet.testcontainers.org/): se crea un rol y una base propios (mínimo privilegio, como `scripts/init-databases.sh`) y las migraciones se aplican al iniciar. Los tokens se firman con una clave de prueba. Para Identity, Redis se reemplaza por una caché distribuida en memoria, por lo que no hace falta Redis.
+
+- **Requisitos:** Docker en ejecución y acceso a la imagen. Por defecto usan `postgres:15-alpine` (la del compose); se puede cambiar con `TEST_POSTGRES_IMAGE`, por ejemplo `TEST_POSTGRES_IMAGE=postgres:17-alpine`. Sin Docker, estas pruebas fallan con un mensaje que lo indica.
+- **Cada prueba usa datos propios** (usuarios, médicos y centros nuevos), por lo que no dependen del orden de ejecución.
+- Las clases de apoyo compartidas están en `src/IntegrationTests.Shared` (se incluyen como archivos vinculados, no es un proyecto).
+- No hay pruebas automatizadas del frontend, de Notifications como API ni del gateway.
 
 ## Calidad y CI
 
-`.github/workflows/ci.yml` se ejecuta en push y pull request a `main` y `development`. Compila con `dotnet build`, ejecuta `dotnet test`, y hace lint y build del frontend. El lint del frontend y `dotnet format` están configurados como no bloqueantes. Para reproducir localmente (`dotnet format` no se ejecutó al escribir esta guía y puede reportar cambios pendientes):
+`.github/workflows/ci.yml` se ejecuta en push y pull request a `main` y `development`. Compila con `dotnet build`, ejecuta las pruebas unitarias y luego las de integración (el runner incluye Docker), y hace lint y build del frontend. El lint del frontend y `dotnet format` están configurados como no bloqueantes. Para reproducir localmente (`dotnet format` no se ejecutó al escribir esta guía y puede reportar cambios pendientes):
 
 ```bash
 dotnet build CityServicesHub.sln --configuration Release
-dotnet test CityServicesHub.sln --configuration Release
+dotnet test CityServicesHub.sln --configuration Release   # añadir --filter para separar unitarias e integración
 dotnet format CityServicesHub.sln --verify-no-changes
 (cd src/WebApp && npm run lint && npm run build)
 ```

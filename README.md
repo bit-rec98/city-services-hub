@@ -133,11 +133,12 @@ docker compose up -d --build
 ## Pruebas
 
 ```bash
-dotnet test CityServicesHub.sln          # pruebas del backend (xUnit)
+dotnet test CityServicesHub.sln --filter "Category!=Integration"   # unitarias, sin Docker
+dotnet test CityServicesHub.sln --filter "Category=Integration"    # integración con PostgreSQL en Docker (Testcontainers)
 cd src/WebApp && npm run lint && npm run build   # el frontend no tiene pruebas automatizadas
 ```
 
-CI (`.github/workflows/ci.yml`) compila y prueba el backend, y hace lint y build del frontend en push y pull request a `main` y `development`.
+Las pruebas de integración levantan las APIs reales contra un PostgreSQL desechable (necesitan Docker; ver [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md#pruebas)). CI (`.github/workflows/ci.yml`) compila el backend y ejecuta ambos grupos de pruebas, y hace lint y build del frontend en push y pull request a `main` y `development`.
 
 ## Estructura del proyecto
 
