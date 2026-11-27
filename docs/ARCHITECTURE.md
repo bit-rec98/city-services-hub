@@ -25,7 +25,7 @@ Cada servicio usa su propia base de datos (`identity_db`, `medical_appointments_
 
 | Componente | Ubicación | Responsabilidad | Estado |
 |---|---|---|---|
-| API Gateway | `src/ApiGateway` | Enrutamiento (YARP), rate limiting por IP, CORS. Registra la validación de JWT, pero no exige autenticación en ninguna ruta: cada servicio valida el token | Implementado; destinos en `localhost` |
+| API Gateway | `src/ApiGateway` | Enrutamiento (YARP), rate limiting por IP, CORS. Registra la validación de JWT, pero no exige autenticación en ninguna ruta: cada servicio valida el token | Implementado; destinos en `localhost` salvo en Docker Compose, que usa los nombres de servicio |
 | Identity | `src/Services/Identity` | Registro, login, emisión de JWT, usuarios y roles | Parcial |
 | Medical Appointments | `src/Services/MedicalAppointments` | Turnos médicos y centros de salud | Parcial |
 | Notifications | `src/Services/Notifications` | Notificaciones por usuario y despacho por canal | Parcial; senders externos son stubs |

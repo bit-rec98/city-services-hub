@@ -101,7 +101,7 @@ docker compose up -d --build
 | PostgreSQL / Redis | 5432 / 6379 |
 | RabbitMQ (sin uso) | 5672 / 15672 |
 
-> **Limitaciones actuales de este modo (sin verificar en esta versión):** el compose no incluye el servicio Notifications; el gateway tiene los destinos en `localhost` (válidos solo fuera de Docker), por lo que dentro de Docker no llega a los servicios, y el repositorio no contiene migraciones de EF Core, así que el esquema de las bases no se crea. Ver [SUMMARY.md](SUMMARY.md).
+> **Limitaciones actuales de este modo (el stack completo no se ha levantado con `docker compose up`):** el compose no incluye el servicio Notifications. Identity y Medical Appointments aplican sus migraciones al arrancar (`Database__MigrateOnStartup=true`), y el compose sobrescribe los destinos del gateway para usar los nombres de servicio. Ver [SUMMARY.md](SUMMARY.md).
 
 ### Desarrollo local (sin Docker para los servicios)
 
@@ -116,6 +116,7 @@ docker compose up -d --build
    ```bash
    export JwtSettings__SecretKey="<el mismo valor de JWT_SECRET_KEY>"
    export ConnectionStrings__IdentityDb="Host=localhost;Port=5432;Database=identity_db;Username=identity_user;Password=<IDENTITY_DB_PASSWORD>"
+   export Database__MigrateOnStartup=true   # aplica las migraciones al arrancar (opcional; ver docs/DEVELOPMENT.md)
    ASPNETCORE_URLS=http://localhost:5001 dotnet run --project src/Services/Identity/Identity.API
    ```
 

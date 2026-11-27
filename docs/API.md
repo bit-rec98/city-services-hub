@@ -14,7 +14,7 @@ Esta guía describe las rutas implementadas hoy. La fuente de verdad es el códi
 | Swagger (solo `Development`) | `/swagger` en cada servicio |
 | Health check | `GET /health` en cada servicio y en el gateway |
 
-> **Nota sobre el gateway:** sus rutas están definidas, pero sus destinos apuntan a `localhost`, así que solo funcionan cuando los servicios corren fuera de Docker en los puertos 5001 (Identity), 5002 (Medical Appointments) y 5003 (Notifications). Ver [SUMMARY.md](../SUMMARY.md).
+> **Nota sobre el gateway:** en `appsettings.json` sus destinos son `localhost:5001` (Identity), `localhost:5002` (Medical Appointments) y `localhost:5003` (Notifications), válidos con los servicios fuera de Docker. `docker-compose.yml` los sobrescribe con `identity-api` y `appointments-api`; Notifications no está en el compose.
 
 ### Rutas del gateway
 

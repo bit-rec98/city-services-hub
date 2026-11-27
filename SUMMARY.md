@@ -12,8 +12,11 @@ Resumen verificable del estado del proyecto. Cada afirmación se contrastó con 
 | `docker compose config` con un `.env` completo / sin `.env` | Valida / falla indicando la variable faltante |
 | Script `scripts/init-databases.sh` en un contenedor `postgres:17-alpine` | Crea un rol y una base por servicio; cada rol solo puede conectarse a su base |
 | Arranque de cada servicio sin `JwtSettings__SecretKey` | Falla al iniciar |
+| Appointments API contra PostgreSQL 17 real (migraciones al arrancar, rol de mínimo privilegio) con JWT firmados con la clave de prueba | 22 comprobaciones HTTP correctas: 401 sin token, validación 400, paciente tomado del token, 404/403 sobre turnos ajenos, acceso de administrador, 409 por horario ocupado, confirmar y cancelar |
+| Identity API contra PostgreSQL real | Login (200) con roles en `jsonb`, `GET /auth/me` con y sin token, 2FA: sin código se pide, con cualquier código 401 y sin emitir tokens. El registro **no** se probó de extremo a extremo (necesita Redis) |
+| Migraciones | Las tres se aplican en una base vacía; el gateway usa el destino sobrescrito por variable de entorno |
 
-**No verificado:** `docker compose up` completo, servicios en ejecución contra PostgreSQL/Redis reales, el flujo de extremo a extremo entre frontend, gateway y servicios, y la autorización a nivel HTTP (solo está cubierta a nivel de handlers).
+**No verificado:** `docker compose up` completo (no se construyeron las imágenes), Redis (registro y códigos de verificación), Notifications en ejecución, y el flujo de extremo a extremo entre frontend, gateway y servicios. Las pruebas HTTP descritas arriba son manuales y no están automatizadas en el repositorio.
 
 ## Estado por componente
 
@@ -30,9 +33,7 @@ Resumen verificable del estado del proyecto. Cada afirmación se contrastó con 
 
 **Bloqueantes para ejecutar el sistema completo**
 
-- No hay migraciones de EF Core en el repositorio ni se llama a `Migrate()`/`EnsureCreated()`: el esquema de las bases no se crea.
-- Dentro de Docker, el gateway apunta a `localhost:5001/5002/5003`, que no son los servicios. Debe usar los nombres de servicio del compose.
-- El compose no incluye Notifications, y el gateway enruta `/api/v1/notifications` a `localhost:5003`.
+- El compose no incluye Notifications (no tiene Dockerfile), y el gateway enruta `/api/v1/notifications` a `localhost:5003`, que dentro de Docker no es ese servicio.
 
 **Seguridad**
 
