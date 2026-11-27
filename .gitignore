@@ -114,6 +114,7 @@ out/
 .env
 .env.*
 *.env
+!.env.example
 
 # IDE
 .idea/
