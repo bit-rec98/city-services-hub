@@ -70,7 +70,7 @@ Dependencias: `API → Application → Domain` e `Infrastructure → Application
 
 ### Limitaciones de seguridad conocidas
 
-Medical Appointments no valida sus entradas, 2FA no se verifica, el frontend guarda tokens en `localStorage`, el rate limiting confía en `X-Real-IP` del cliente y hay dependencias con avisos de seguridad. Detalle y prioridad en [SUMMARY.md](../SUMMARY.md).
+2FA no está implementado (el login con 2FA habilitado se rechaza), el frontend guarda tokens en `localStorage`, el rate limiting confía en `X-Real-IP` del cliente y hay dependencias con avisos de seguridad. Detalle y prioridad en [SUMMARY.md](../SUMMARY.md).
 
 ## Comunicación
 

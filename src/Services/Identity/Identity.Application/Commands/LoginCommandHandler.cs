@@ -64,12 +64,21 @@ public class LoginCommandHandler : ICommandHandler<LoginCommand, AuthResponseDto
                 "Credenciales inválidas."));
         }
 
-        // TODO: Verificar 2FA si está habilitado
-        if (user.TwoFactorEnabled && string.IsNullOrEmpty(request.TwoFactorCode))
+        if (user.TwoFactorEnabled)
         {
+            if (string.IsNullOrEmpty(request.TwoFactorCode))
+            {
+                return Result.Failure<AuthResponseDto>(new Error(
+                    "Auth.TwoFactorRequired",
+                    "Se requiere el código de verificación de dos factores."));
+            }
+
+            // Falla de forma segura: todavía no existe un verificador de códigos (TOTP), así que un
+            // código enviado por el cliente nunca se acepta. Hasta implementarlo (ver
+            // SUMMARY.md), los usuarios con 2FA habilitado no pueden iniciar sesión.
             return Result.Failure<AuthResponseDto>(new Error(
-                "Auth.TwoFactorRequired", 
-                "Se requiere el código de verificación de dos factores."));
+                "Auth.TwoFactorInvalid",
+                "No se pudo verificar el código de dos factores."));
         }
 
         // Generar tokens

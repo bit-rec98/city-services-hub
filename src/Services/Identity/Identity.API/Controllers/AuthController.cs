@@ -76,6 +76,7 @@ public class AuthController : ControllerBase
                 "Auth.InvalidCredentials" => Unauthorized(new { message = result.Error.Message }),
                 "Auth.AccountLocked" => Unauthorized(new { message = result.Error.Message }),
                 "Auth.AccountInactive" => Unauthorized(new { message = result.Error.Message }),
+                "Auth.TwoFactorInvalid" => Unauthorized(new { message = result.Error.Message }),
                 "Auth.TwoFactorRequired" => Ok(new { requiresTwoFactor = true, message = result.Error.Message }),
                 _ => BadRequest(new { message = result.Error.Message })
             };

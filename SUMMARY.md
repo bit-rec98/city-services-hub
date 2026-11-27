@@ -36,8 +36,7 @@ Resumen verificable del estado del proyecto. Cada afirmación se contrastó con 
 
 **Seguridad**
 
-- Medical Appointments no valida sus entradas: los validadores de FluentValidation de esa API están excluidos de la compilación y no hay un comportamiento de validación registrado.
-- `LoginCommandHandler` solo comprueba que se envíe un `TwoFactorCode` cuando el usuario tiene 2FA habilitado; **no verifica el código**. No existe un flujo para habilitar 2FA.
+- 2FA no está implementado: no hay verificación de códigos ni flujo para habilitarlo. Por seguridad, `LoginCommandHandler` rechaza siempre el login de un usuario con 2FA habilitado (no acepta ningún código).
 - El frontend guarda `accessToken` y `refreshToken` en `localStorage` (expuestos ante XSS).
 - El rate limiting del gateway usa el encabezado `X-Real-IP` enviado por el cliente.
 - Dependencias con avisos de seguridad: AutoMapper 12.0.1 (3 avisos de severidad alta) y 6 vulnerabilidades en `npm audit`.
